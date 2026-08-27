@@ -49,6 +49,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 colored = "3.1"
 memchr = "2.7"
+jwalk = "0.9"
 
 # Tauri v2 Ecosystem (Latest)
 tauri = { version = "2.3", features = [] }

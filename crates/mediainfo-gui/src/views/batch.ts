@@ -1,6 +1,6 @@
 import { MediaReport } from "../types";
 
-export function renderBatchView(reports: MediaReport[]): string {
+export function renderBatchView(reports: MediaReport[], currentIndex = 0): string {
   if (reports.length === 0) {
     return `
       <div class="empty-state-card" id="batch-drop-card">
@@ -29,13 +29,14 @@ export function renderBatchView(reports: MediaReport[]): string {
   };
 
   return `
-    <div style="display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; flex-direction: column; gap: 12px;">
       <div style="display: flex; align-items: center; justify-content: space-between;">
-        <div style="font-weight: 600; font-size: 14px;">
-          Batch Queue (${reports.length} files analyzed)
+        <div style="font-weight: 600; font-size: 13px;">
+          Batch Queue (${reports.length} files scanned)
         </div>
-        <div style="display: flex; gap: 8px;">
+        <div style="display: flex; gap: 6px;">
           <button id="batch-add-btn" class="btn">➕ Add Files</button>
+          <button id="batch-add-folder-btn" class="btn">📁 Add Folder</button>
           <button id="batch-export-csv-btn" class="btn btn-primary">📊 Export CSV</button>
           <button id="batch-clear-btn" class="btn">🗑️ Clear</button>
         </div>
@@ -44,12 +45,13 @@ export function renderBatchView(reports: MediaReport[]): string {
       <table class="grid-table">
         <thead>
           <tr>
+            <th style="width: 36px;">#</th>
             <th>File Name</th>
-            <th style="width: 100px;">Format</th>
-            <th style="width: 90px;">Size</th>
-            <th style="width: 90px;">Duration</th>
-            <th style="width: 140px;">Video</th>
-            <th style="width: 140px;">Audio</th>
+            <th style="width: 90px;">Format</th>
+            <th style="width: 85px;">Size</th>
+            <th style="width: 85px;">Duration</th>
+            <th style="width: 130px;">Video</th>
+            <th style="width: 130px;">Audio</th>
           </tr>
         </thead>
         <tbody>
@@ -59,10 +61,12 @@ export function renderBatchView(reports: MediaReport[]): string {
               const v = r.videos[0];
               const a = r.audios[0];
               const name = gen.file_name || gen.file_path?.split("/").pop() || `File #${idx + 1}`;
+              const isActive = idx === currentIndex;
 
               return `
-              <tr class="batch-row" data-index="${idx}" style="cursor: pointer;">
-                <td style="font-weight: 600; color: var(--text-main); word-break: break-all;">${name}</td>
+              <tr class="batch-row${isActive ? " batch-row-active" : ""}" data-index="${idx}" style="cursor: pointer; ${isActive ? "background: rgba(59, 130, 246, 0.15); font-weight: 600;" : ""}">
+                <td style="color: var(--text-dim); font-family: var(--font-mono); font-size: 10px;">${idx + 1}</td>
+                <td style="color: ${isActive ? "#fff" : "var(--text-main)"}; word-break: break-all;">${name}</td>
                 <td style="color: var(--accent-blue); font-weight: 500;">${gen.format}</td>
                 <td style="color: var(--text-muted); font-family: var(--font-mono); font-size: 11px;">${formatSize(gen.file_size)}</td>
                 <td style="color: var(--text-muted); font-family: var(--font-mono); font-size: 11px;">${formatDuration(gen.duration_ms)}</td>

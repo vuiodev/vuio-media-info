@@ -1,6 +1,8 @@
 use mediainfo::{MediaInfo, MediaReport, OutputFormat};
+use mediainfo_core::types::ContainerFormat;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use std::sync::Mutex;
 
 pub struct CliState {
@@ -32,10 +34,72 @@ pub struct AppInfo {
 }
 
 #[tauri::command]
+pub fn get_supported_extensions() -> Vec<&'static str> {
+    ContainerFormat::all_supported_extensions().to_vec()
+}
+
+#[tauri::command]
 pub fn get_initial_files(state: tauri::State<CliState>) -> Vec<String> {
-    let files = state.initial_files.lock().unwrap().clone();
-    eprintln!("[cmd] get_initial_files -> {:?}", files);
-    files
+    let raw_args = state.initial_files.lock().unwrap().clone();
+    let mut resolved_files = Vec::new();
+
+    for arg in raw_args {
+        let p = Path::new(&arg);
+        if p.is_dir() {
+            for entry in jwalk::WalkDir::new(p).sort(true).skip_hidden(true) {
+                if let Ok(entry) = entry {
+                    if entry.file_type().is_file() {
+                        let path = entry.path();
+                        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                            if ContainerFormat::is_supported_extension(ext) {
+                                if let Some(path_str) = path.to_str() {
+                                    resolved_files.push(path_str.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else if p.is_file() {
+            resolved_files.push(arg);
+        }
+    }
+
+    eprintln!("[cmd] get_initial_files -> {} files", resolved_files.len());
+    resolved_files
+}
+
+#[tauri::command]
+pub fn scan_folder(folder_path: String) -> Result<Vec<MediaReport>, String> {
+    eprintln!("[cmd] scan_folder(\"{}\")", folder_path);
+    let p = Path::new(&folder_path);
+    if !p.exists() {
+        return Err(format!("Folder '{}' does not exist", folder_path));
+    }
+
+    let mut file_paths: Vec<String> = Vec::new();
+    for entry in jwalk::WalkDir::new(p).sort(true).skip_hidden(true) {
+        let entry = entry.map_err(|e| e.to_string())?;
+        if entry.file_type().is_file() {
+            let path = entry.path();
+            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                if ContainerFormat::is_supported_extension(ext) {
+                    if let Some(path_str) = path.to_str() {
+                        file_paths.push(path_str.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    eprintln!("[cmd] scan_folder found {} media files, inspecting in parallel...", file_paths.len());
+    let reports: Vec<MediaReport> = file_paths
+        .par_iter()
+        .filter_map(|path| MediaInfo::open_path(path).ok())
+        .collect();
+
+    eprintln!("[cmd] scan_folder completed: {} reports", reports.len());
+    Ok(reports)
 }
 
 #[tauri::command]
@@ -82,72 +146,52 @@ pub fn format_report(path: String, format: String) -> Result<String, String> {
 #[tauri::command]
 pub fn compare_files(path_a: String, path_b: String) -> Result<ComparisonDiff, String> {
     eprintln!("[cmd] compare_files(\"{}\", \"{}\")", path_a, path_b);
-    let report_a = MediaInfo::open_path(&path_a).map_err(|e| format!("Error opening file A: {}", e))?;
-    let report_b = MediaInfo::open_path(&path_b).map_err(|e| format!("Error opening file B: {}", e))?;
+    let rep_a = MediaInfo::open_path(&path_a).map_err(|e| e.to_string())?;
+    let rep_b = MediaInfo::open_path(&path_b).map_err(|e| e.to_string())?;
 
     let mut differences = Vec::new();
 
-    if report_a.general.format != report_b.general.format {
+    if rep_a.general.format != rep_b.general.format {
         differences.push(FieldDiff {
             category: "General".to_string(),
             field: "Format".to_string(),
-            value_a: report_a.general.format.display_name().to_string(),
-            value_b: report_b.general.format.display_name().to_string(),
+            value_a: rep_a.general.format.display_name().to_string(),
+            value_b: rep_b.general.format.display_name().to_string(),
         });
     }
 
-    if report_a.general.file_size != report_b.general.file_size {
+    if rep_a.general.file_size != rep_b.general.file_size {
         differences.push(FieldDiff {
             category: "General".to_string(),
-            field: "File Size".to_string(),
-            value_a: format!("{} bytes", report_a.general.file_size),
-            value_b: format!("{} bytes", report_b.general.file_size),
+            field: "FileSize".to_string(),
+            value_a: format!("{} bytes", rep_a.general.file_size),
+            value_b: format!("{} bytes", rep_b.general.file_size),
         });
     }
 
-    if let (Some(va), Some(vb)) = (report_a.videos.first(), report_b.videos.first()) {
-        if va.format != vb.format {
-            differences.push(FieldDiff {
-                category: "Video".to_string(),
-                field: "Codec".to_string(),
-                value_a: va.format.display_name().to_string(),
-                value_b: vb.format.display_name().to_string(),
-            });
-        }
-        if va.width != vb.width || va.height != vb.height {
-            differences.push(FieldDiff {
-                category: "Video".to_string(),
-                field: "Resolution".to_string(),
-                value_a: format!("{}x{}", va.width, va.height),
-                value_b: format!("{}x{}", vb.width, vb.height),
-            });
-        }
+    if rep_a.videos.len() != rep_b.videos.len() {
+        differences.push(FieldDiff {
+            category: "Video".to_string(),
+            field: "StreamCount".to_string(),
+            value_a: rep_a.videos.len().to_string(),
+            value_b: rep_b.videos.len().to_string(),
+        });
     }
 
-    if let (Some(aa), Some(ab)) = (report_a.audios.first(), report_b.audios.first()) {
-        if aa.format != ab.format {
-            differences.push(FieldDiff {
-                category: "Audio".to_string(),
-                field: "Codec".to_string(),
-                value_a: aa.format.display_name().to_string(),
-                value_b: ab.format.display_name().to_string(),
-            });
-        }
-        if aa.channels != ab.channels {
-            differences.push(FieldDiff {
-                category: "Audio".to_string(),
-                field: "Channels".to_string(),
-                value_a: format!("{} ch", aa.channels),
-                value_b: format!("{} ch", ab.channels),
-            });
-        }
+    if rep_a.audios.len() != rep_b.audios.len() {
+        differences.push(FieldDiff {
+            category: "Audio".to_string(),
+            field: "StreamCount".to_string(),
+            value_a: rep_a.audios.len().to_string(),
+            value_b: rep_b.audios.len().to_string(),
+        });
     }
 
     Ok(ComparisonDiff {
         file_a: path_a,
         file_b: path_b,
-        report_a,
-        report_b,
+        report_a: rep_a,
+        report_b: rep_b,
         differences,
     })
 }

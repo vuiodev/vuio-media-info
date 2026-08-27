@@ -48,6 +48,61 @@ impl ContainerFormat {
             Self::Unknown => "Unknown",
         }
     }
+
+    /// Primary and common file extensions associated with this container format.
+    pub fn extensions(&self) -> &'static [&'static str] {
+        match self {
+            Self::MPEG4 => &["mp4", "m4v", "m4a", "m4b", "mov", "qt"],
+            Self::Matroska => &["mkv", "mka", "mks", "mk3d"],
+            Self::WebM => &["webm"],
+            Self::QuickTime => &["mov", "qt"],
+            Self::AVI => &["avi", "divx"],
+            Self::WAV => &["wav", "wave", "bwf", "rf64"],
+            Self::MPEGTS => &["ts", "m2ts", "mts", "m2t"],
+            Self::MPEGPS => &["mpg", "mpeg", "vob", "evob"],
+            Self::FLV => &["flv", "f4v"],
+            Self::Ogg => &["ogg", "ogv", "oga", "ogx", "opus", "spx"],
+            Self::MXF => &["mxf"],
+            Self::ASF => &["asf", "wmv", "wma"],
+            Self::FLAC => &["flac", "fla"],
+            Self::MP3 => &["mp3", "mp2", "mp1", "mpa"],
+            Self::AAC => &["aac", "adts"],
+            Self::AC3 => &["ac3", "eac3", "ec3"],
+            Self::DTS => &["dts", "dtshd", "dtsx"],
+            Self::MPC => &["mpc", "mp+"],
+            Self::Unknown => &[],
+        }
+    }
+
+    /// Single canonical list of all media extensions recognized by the engine.
+    pub fn all_supported_extensions() -> &'static [&'static str] {
+        &[
+            "mp4", "m4v", "m4a", "m4b", "mov", "qt",
+            "mkv", "mka", "mks", "mk3d", "webm",
+            "avi", "divx",
+            "wav", "wave", "bwf", "rf64",
+            "ts", "m2ts", "mts", "m2t",
+            "mpg", "mpeg", "vob", "evob",
+            "flv", "f4v",
+            "ogg", "ogv", "oga", "ogx", "opus", "spx",
+            "mxf",
+            "asf", "wmv", "wma",
+            "flac", "fla",
+            "mp3", "mp2", "mp1", "mpa",
+            "aac", "adts",
+            "ac3", "eac3", "ec3",
+            "dts", "dtshd", "dtsx",
+            "mpc", "mp+",
+        ]
+    }
+
+    /// Checks if a given extension (case-insensitive) is supported.
+    pub fn is_supported_extension(ext: &str) -> bool {
+        let clean = ext.trim_start_matches('.');
+        Self::all_supported_extensions()
+            .iter()
+            .any(|&e| e.eq_ignore_ascii_case(clean))
+    }
 }
 
 /// Known Video elementary stream codecs.

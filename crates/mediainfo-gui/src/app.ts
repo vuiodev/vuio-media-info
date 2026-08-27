@@ -15,6 +15,8 @@ export class MediaInfoApp {
   private currentRawFormat = "text";
   private rawContent = "";
   private batchReports: MediaReport[] = [];
+  private currentBatchIndex = 0;
+  private supportedExtensions: string[] = [];
   private currentDiff?: ComparisonDiff;
   private diffFileA?: string;
   private diffFileB?: string;
@@ -28,6 +30,12 @@ export class MediaInfoApp {
 
   private async init() {
     console.log("[app] init() starting");
+    try {
+      this.supportedExtensions = await invoke<string[]>("get_supported_extensions");
+      console.log("[app] supported extensions loaded:", this.supportedExtensions.length);
+    } catch (e) {
+      console.warn("[app] could not fetch supported extensions:", e);
+    }
     this.renderShell();
     this.setupListeners();
     this.setupShortcuts();
@@ -46,7 +54,8 @@ export class MediaInfoApp {
           await this.loadFile(files[0]);
         } else {
           await this.processBatch(files);
-          this.activeTab = "batch";
+          this.currentBatchIndex = 0;
+          this.currentReport = this.batchReports[0];
           this.renderShell();
         }
       }
@@ -59,7 +68,7 @@ export class MediaInfoApp {
   private showError(msg: string) {
     const el = document.getElementById("main-content-view");
     if (el) {
-      el.innerHTML = `<div style="padding: 20px; color: #ef4444; font-family: var(--font-mono); background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; margin: 20px;">${msg}</div>` + el.innerHTML;
+      el.innerHTML = `<div style="padding: 16px; color: #ef4444; font-family: var(--font-mono); background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; margin-bottom: 16px;">${msg}</div>` + el.innerHTML;
     }
   }
 
@@ -73,6 +82,25 @@ export class MediaInfoApp {
     const fileName = this.currentReport?.general?.file_name
       || this.currentReport?.general?.file_path?.split("/").pop()
       || "No Media File Open";
+
+    const quickSwitcherHtml = this.batchReports.length > 1 ? `
+      <div class="quick-switcher-bar">
+        <div class="quick-switcher-left">
+          <button id="btn-prev-file" class="btn btn-stepper" ${this.currentBatchIndex === 0 ? "disabled" : ""} title="Previous File ([ or Alt+Left])">◀ Prev</button>
+          <select id="quick-file-select" class="quick-select-dropdown">
+            ${this.batchReports.map((r, i) => {
+              const name = r.general?.file_name || r.general?.file_path?.split("/").pop() || `File #${i + 1}`;
+              const fmt = r.general?.format || "";
+              return `<option value="${i}" ${i === this.currentBatchIndex ? "selected" : ""}>${i + 1}. ${name} (${fmt})</option>`;
+            }).join("")}
+          </select>
+          <button id="btn-next-file" class="btn btn-stepper" ${this.currentBatchIndex >= this.batchReports.length - 1 ? "disabled" : ""} title="Next File (] or Alt+Right)">Next ▶</button>
+        </div>
+        <div class="quick-switcher-right">
+          <span class="batch-counter-badge">${this.currentBatchIndex + 1} / ${this.batchReports.length}</span>
+        </div>
+      </div>
+    ` : "";
 
     container.innerHTML = `
       <div class="titlebar" data-tauri-drag-region>
@@ -95,6 +123,8 @@ export class MediaInfoApp {
         <div class="tab-pill ${this.activeTab === "batch" ? "active" : ""}" data-tab="batch">Batch (${this.batchReports.length})</div>
       </div>
 
+      ${quickSwitcherHtml}
+
       <div class="main-viewport" id="main-content-view">
         ${this.renderActiveView()}
       </div>
@@ -105,7 +135,7 @@ export class MediaInfoApp {
 
   private renderActiveView(): string {
     if (this.activeTab === "diff") return renderDiffView(this.currentDiff);
-    if (this.activeTab === "batch") return renderBatchView(this.batchReports);
+    if (this.activeTab === "batch") return renderBatchView(this.batchReports, this.currentBatchIndex);
 
     if (!this.currentReport) {
       return `
@@ -132,16 +162,45 @@ export class MediaInfoApp {
     }
   }
 
+  private async switchBatchFile(index: number) {
+    if (index < 0 || index >= this.batchReports.length) return;
+    this.currentBatchIndex = index;
+    this.currentReport = this.batchReports[index];
+    if (this.activeTab === "raw" && this.currentReport) {
+      await this.loadRawContent(this.currentRawFormat);
+    }
+    this.renderShell();
+  }
+
   private setupListeners() {
     document.addEventListener("mousedown", (e) => {
       const target = e.target as HTMLElement;
-      if (e.button === 0 && target.closest(".titlebar") && !target.closest("button, .btn, .titlebar-actions")) {
+      if (e.button === 0 && target.closest(".titlebar") && !target.closest("button, .btn, .titlebar-actions, select")) {
         invoke("start_window_drag").catch(() => {});
+      }
+    });
+
+    document.addEventListener("change", async (e) => {
+      const target = e.target as HTMLElement;
+      if (target.id === "quick-file-select") {
+        const select = target as HTMLSelectElement;
+        const idx = parseInt(select.value, 10);
+        await this.switchBatchFile(idx);
       }
     });
 
     document.addEventListener("click", async (e) => {
       const target = e.target as HTMLElement;
+
+      // Quick stepper buttons
+      if (target.id === "btn-prev-file") {
+        await this.switchBatchFile(this.currentBatchIndex - 1);
+        return;
+      }
+      if (target.id === "btn-next-file") {
+        await this.switchBatchFile(this.currentBatchIndex + 1);
+        return;
+      }
 
       // Tab switching
       const tabEl = target.closest(".tab-pill") as HTMLElement | null;
@@ -165,7 +224,7 @@ export class MediaInfoApp {
       }
 
       // Open folder
-      if (target.id === "btn-open-folder" || target.id === "btn-empty-open-folder") {
+      if (target.id === "btn-open-folder" || target.id === "btn-empty-open-folder" || target.id === "batch-add-folder-btn") {
         console.log("[app] Open Folder button clicked");
         await this.openFolderDialog();
         return;
@@ -215,6 +274,7 @@ export class MediaInfoApp {
       if (batchRow) {
         const idx = parseInt(batchRow.getAttribute("data-index") || "0", 10);
         if (this.batchReports[idx]) {
+          this.currentBatchIndex = idx;
           this.currentReport = this.batchReports[idx];
           this.activeTab = "summary";
           this.renderShell();
@@ -229,6 +289,7 @@ export class MediaInfoApp {
       }
       if (target.id === "batch-clear-btn") {
         this.batchReports = [];
+        this.currentBatchIndex = 0;
         this.renderShell();
         return;
       }
@@ -259,9 +320,25 @@ export class MediaInfoApp {
   }
 
   private setupShortcuts() {
-    window.addEventListener("keydown", (e) => {
+    window.addEventListener("keydown", async (e) => {
       const cmd = e.metaKey || e.ctrlKey;
-      if (cmd && e.key === "o") { e.preventDefault(); this.openFileDialog(); }
+      if (cmd && e.key === "o") { e.preventDefault(); await this.openFileDialog(); return; }
+      if (cmd && e.key === "O") { e.preventDefault(); await this.openFolderDialog(); return; }
+
+      // Quick stepper shortcuts: [ or Alt+Left for prev, ] or Alt+Right for next
+      if (this.batchReports.length > 1) {
+        if (e.key === "[" || (e.altKey && e.key === "ArrowLeft")) {
+          e.preventDefault();
+          await this.switchBatchFile(this.currentBatchIndex - 1);
+          return;
+        }
+        if (e.key === "]" || (e.altKey && e.key === "ArrowRight")) {
+          e.preventDefault();
+          await this.switchBatchFile(this.currentBatchIndex + 1);
+          return;
+        }
+      }
+
       if (cmd && e.key >= "1" && e.key <= "6") {
         e.preventDefault();
         const tabs: ("summary" | "tree" | "grid" | "raw" | "diff" | "batch")[] = [
@@ -273,6 +350,9 @@ export class MediaInfoApp {
           "batch",
         ];
         this.activeTab = tabs[parseInt(e.key, 10) - 1];
+        if (this.activeTab === "raw" && this.currentReport) {
+          await this.loadRawContent(this.currentRawFormat);
+        }
         this.renderShell();
       }
     });
@@ -286,10 +366,24 @@ export class MediaInfoApp {
           const paths = event.payload.paths;
           console.log("[app] drag-drop:", paths);
           if (paths.length === 1) {
+            // Check if it's a folder scan or a single file
+            try {
+              const folderReports = await invoke<MediaReport[]>("scan_folder", { folderPath: paths[0] });
+              if (folderReports && folderReports.length > 0) {
+                this.batchReports = folderReports;
+                this.currentBatchIndex = 0;
+                this.currentReport = folderReports[0];
+                this.renderShell();
+                return;
+              }
+            } catch {
+              // Not a directory or scan failed, fall through to loadFile
+            }
             await this.loadFile(paths[0]);
           } else {
             await this.processBatch(paths);
-            this.activeTab = "batch";
+            this.currentBatchIndex = 0;
+            this.currentReport = this.batchReports[0];
             this.renderShell();
           }
         }
@@ -304,11 +398,14 @@ export class MediaInfoApp {
   private async openFileDialog() {
     console.log("[app] openFileDialog()");
     try {
+      const exts = this.supportedExtensions.length > 0
+        ? this.supportedExtensions
+        : ["mp4", "mkv", "mov", "avi", "wav", "flac", "mp3", "aac", "m4a", "webm", "ts", "ogg", "opus", "dts", "ac3", "mpc"];
       const selected = await open({
         multiple: true,
         filters: [{
           name: "Media Files",
-          extensions: ["mp4", "mkv", "mov", "avi", "wav", "flac", "mp3", "aac", "m4a", "webm", "ts", "ogg", "opus"],
+          extensions: exts,
         }],
       });
       console.log("[app] dialog result:", selected);
@@ -319,7 +416,8 @@ export class MediaInfoApp {
         await this.loadFile(paths[0]);
       } else {
         await this.processBatch(paths);
-        this.activeTab = "batch";
+        this.currentBatchIndex = 0;
+        this.currentReport = this.batchReports[0];
         this.renderShell();
       }
     } catch (err) {
@@ -334,20 +432,42 @@ export class MediaInfoApp {
       const selected = await open({ directory: true, multiple: false });
       console.log("[app] folder dialog result:", selected);
       if (!selected || typeof selected !== "string") return;
-      this.showError("Folder batch scan not yet wired — please select individual files for now.");
+      await this.loadFolder(selected);
     } catch (err) {
       console.error("[app] openFolderDialog error:", err);
       this.showError("Open folder dialog error: " + err);
     }
   }
 
+  private async loadFolder(folderPath: string) {
+    console.log("[app] loadFolder()", folderPath);
+    try {
+      const reports = await invoke<MediaReport[]>("scan_folder", { folderPath });
+      console.log("[app] scan_folder reports:", reports.length);
+      if (reports.length === 0) {
+        this.showError(`No supported media files found in: ${folderPath}`);
+        return;
+      }
+      this.batchReports = reports;
+      this.currentBatchIndex = 0;
+      this.currentReport = reports[0];
+      this.renderShell();
+    } catch (err) {
+      console.error("[app] loadFolder error:", err);
+      this.showError("Folder scan error: " + err);
+    }
+  }
+
   private async pickSingleFile(): Promise<string | null> {
     try {
+      const exts = this.supportedExtensions.length > 0
+        ? this.supportedExtensions
+        : ["mp4", "mkv", "mov", "avi", "wav", "flac", "mp3", "aac", "m4a", "webm", "ts", "ogg", "opus", "dts", "ac3", "mpc"];
       const selected = await open({
         multiple: false,
         filters: [{
           name: "Media Files",
-          extensions: ["mp4", "mkv", "mov", "avi", "wav", "flac", "mp3", "aac", "m4a", "webm", "ts", "ogg", "opus"],
+          extensions: exts,
         }],
       });
       if (selected && typeof selected === "string") return selected;
@@ -365,7 +485,6 @@ export class MediaInfoApp {
       const report = await invoke<MediaReport>("inspect_file", { path });
       console.log("[app] inspect_file result:", report?.general?.format);
       this.currentReport = report;
-      this.activeTab = "summary";
       this.renderShell();
     } catch (err) {
       console.error("[app] loadFile error:", err);

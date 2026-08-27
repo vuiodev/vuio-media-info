@@ -164,6 +164,76 @@ body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+/* Quick File Switcher Bar */
+.quick-switcher-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  background: rgba(18, 22, 34, 0.7);
+  border-bottom: 1px solid var(--border-subtle);
+  gap: 8px;
+}
+
+.quick-switcher-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-stepper {
+  padding: 2px 8px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-stepper:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.quick-select-dropdown {
+  flex: 1;
+  max-width: 520px;
+  background: rgba(14, 17, 26, 0.85);
+  color: var(--text-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-family: var(--font-system);
+  outline: none;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+.quick-select-dropdown:focus {
+  border-color: var(--accent-blue);
+}
+
+.quick-switcher-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.batch-counter-badge {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+}
+
 /* Main Viewport */
 .main-viewport {
   flex: 1;
