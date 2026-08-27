@@ -1,4 +1,4 @@
-# MediaInfo (Rust)
+# Vuio Media Info
 
 A high-performance, pure Rust rewrite of [MediaInfoLib](https://github.com/MediaArea/MediaInfoLib).
 
@@ -6,7 +6,7 @@ Provides technical and tag information about video and audio files with memory s
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
 * **Pure Rust & Memory Safe**: 100% safe, modern Rust without global state or unsafe pointer arithmetic.
 * **Zero-Copy Bitstream Engine**: Sub-byte `MsbBitReader` and `LsbBitReader` with Exp-Golomb decoding and automatic NAL emulation prevention unescaping.
@@ -48,7 +48,7 @@ Provides technical and tag information about video and audio files with memory s
 
 ---
 
-## 📦 Workspace Architecture
+## Workspace Architecture
 
 The project is structured as a modular Cargo workspace:
 
@@ -70,7 +70,7 @@ mediainfo/
 
 ---
 
-## 🛠️ CLI Usage
+## CLI Usage
 
 ### Basic Inspection (Classic Text)
 ```bash
@@ -99,7 +99,7 @@ mediainfo -O html video.mkv > report.html
 
 ---
 
-## 💻 Rust Library API
+## Rust Library API
 
 Add `mediainfo` to your `Cargo.toml`:
 
@@ -157,16 +157,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ---
 
-## 🧪 Testing
+## License
 
-Run all unit and integration tests across the workspace:
-
-```bash
-cargo test --workspace
-```
-
----
-
-## 📄 License
-
-Licensed under the **BSD 2-Clause License**, citing original work from MediaArea.net SARL. See `NOTICE` and `LICENSE` for details.
+MIT or Apache 2.0
