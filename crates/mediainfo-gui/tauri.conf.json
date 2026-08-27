@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "MediaInfo",
+  "productName": "VuioMediaInfo",
   "version": "0.1.0",
   "identifier": "com.mediainfo.desktop",
   "build": {
@@ -9,7 +9,7 @@
   "app": {
     "windows": [
       {
-        "title": "MediaInfo",
+        "title": "",
         "width": 820,
         "height": 560,
         "minWidth": 640,

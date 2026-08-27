@@ -19,6 +19,7 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let window = app.get_webview_window("main").expect("main window not found");
+            let _ = window.set_title("");
             window_theme::apply_native_theme(&window);
 
             // Enable devtools in debug builds
