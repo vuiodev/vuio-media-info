@@ -516,7 +516,13 @@ jobs:
 
           ASSET_NAME="${{ env.BINARY_NAME }}-${{ matrix.os-arch }}${{ matrix.asset_ext }}"
           if [ "${{ matrix.asset_ext }}" == ".zip" ]; then
-            (cd "$STAGING" && zip -r "../$ASSET_NAME" .)
+            if command -v 7z >/dev/null 2>&1; then
+              (cd "$STAGING" && 7z a -r "../$ASSET_NAME" .)
+            elif command -v zip >/dev/null 2>&1; then
+              (cd "$STAGING" && zip -r "../$ASSET_NAME" .)
+            else
+              powershell -Command "Compress-Archive -Path '$STAGING/*' -DestinationPath '$ASSET_NAME' -Force"
+            fi
           else
             tar -czf "$ASSET_NAME" -C "$STAGING" .
           fi
