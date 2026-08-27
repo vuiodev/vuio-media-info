@@ -5,6 +5,9 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:default",
+    "core:window:allow-start-dragging",
+    "core:webview:default",
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",

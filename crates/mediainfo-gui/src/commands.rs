@@ -39,6 +39,11 @@ pub fn get_initial_files(state: tauri::State<CliState>) -> Vec<String> {
 }
 
 #[tauri::command]
+pub fn start_window_drag(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn inspect_file(path: String) -> Result<MediaReport, String> {
     eprintln!("[cmd] inspect_file(\"{}\")", path);
     let result = MediaInfo::open_path(&path).map_err(|e| format!("Failed to inspect '{}': {}", path, e));

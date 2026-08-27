@@ -133,6 +133,13 @@ export class MediaInfoApp {
   }
 
   private setupListeners() {
+    document.addEventListener("mousedown", (e) => {
+      const target = e.target as HTMLElement;
+      if (e.button === 0 && target.closest(".titlebar") && !target.closest("button, .btn, .titlebar-actions")) {
+        invoke("start_window_drag").catch(() => {});
+      }
+    });
+
     document.addEventListener("click", async (e) => {
       const target = e.target as HTMLElement;
 

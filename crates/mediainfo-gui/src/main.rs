@@ -30,6 +30,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_initial_files,
+            commands::start_window_drag,
             commands::inspect_file,
             commands::inspect_batch,
             commands::format_report,
