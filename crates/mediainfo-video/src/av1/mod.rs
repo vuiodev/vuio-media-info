@@ -112,7 +112,11 @@ impl Av1SequenceHeader {
         let high_bitdepth = r.read_bit()?;
         let bit_depth = if seq_profile == 2 && high_bitdepth {
             let twelve_bit = r.read_bit()?;
-            if twelve_bit { 12 } else { 10 }
+            if twelve_bit {
+                12
+            } else {
+                10
+            }
         } else if high_bitdepth {
             10
         } else {
@@ -141,7 +145,11 @@ impl Av1SequenceHeader {
 
         let color_range = if mono_chrome {
             let full_range = r.read_bit()?;
-            if full_range { ColorRange::Full } else { ColorRange::Limited }
+            if full_range {
+                ColorRange::Full
+            } else {
+                ColorRange::Limited
+            }
         } else if color_primaries == ColorPrimaries::BT709
             && transfer_characteristics == TransferCharacteristics::IEC61966_2_1
             && matrix_coefficients == MatrixCoefficients::Identity
@@ -149,7 +157,11 @@ impl Av1SequenceHeader {
             ColorRange::Full
         } else {
             let full_range = r.read_bit()?;
-            if full_range { ColorRange::Full } else { ColorRange::Limited }
+            if full_range {
+                ColorRange::Full
+            } else {
+                ColorRange::Limited
+            }
         };
 
         let mut subsampling_x = true;

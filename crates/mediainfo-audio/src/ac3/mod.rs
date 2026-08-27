@@ -6,8 +6,8 @@ use mediainfo_core::{
 
 pub const AC3_SAMPLE_RATES: [u32; 4] = [48000, 44100, 32000, 0];
 pub const AC3_BITRATES_KBPS: [u32; 38] = [
-    32, 32, 40, 40, 48, 48, 56, 56, 64, 64, 80, 80, 96, 96, 112, 112, 128, 128, 160, 160, 192,
-    192, 224, 224, 256, 256, 320, 320, 384, 384, 448, 448, 512, 512, 576, 576, 640, 640,
+    32, 32, 40, 40, 48, 48, 56, 56, 64, 64, 80, 80, 96, 96, 112, 112, 128, 128, 160, 160, 192, 192,
+    224, 224, 256, 256, 320, 320, 384, 384, 448, 448, 512, 512, 576, 576, 640, 640,
 ];
 
 /// Parsed Dolby Digital (AC-3) or Dolby Digital Plus (E-AC-3) frame header.
@@ -113,7 +113,10 @@ impl Ac3Header {
             channel_layout = layout;
 
             let search_window = &data[..data.len().min(4096)];
-            if search_window.windows(2).any(|w| w == [0x77, 0x0B] || w == [0xA5, 0x5A]) {
+            if search_window
+                .windows(2)
+                .any(|w| w == [0x77, 0x0B] || w == [0xA5, 0x5A])
+            {
                 dolby_atmos_present = true;
             }
         }

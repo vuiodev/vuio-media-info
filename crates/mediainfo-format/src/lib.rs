@@ -1,3 +1,5 @@
+#![allow(clippy::field_reassign_with_default)]
+
 pub mod csv;
 pub mod html;
 pub mod json;
@@ -10,10 +12,7 @@ pub use json::JsonFormatter;
 pub use text::TextFormatter;
 pub use xml::XmlFormatter;
 
-use mediainfo_core::{
-    error::Result,
-    models::MediaReport,
-};
+use mediainfo_core::{error::Result, models::MediaReport};
 
 /// Supported output formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

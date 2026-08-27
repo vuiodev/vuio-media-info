@@ -17,10 +17,13 @@ impl RiffDemuxer {
         }
 
         let magic = &data[0..4];
-        let is_riff_family = magic == b"RIFF" || magic == b"RIFX" || magic == b"RF64" || magic == b"BW64";
+        let is_riff_family =
+            magic == b"RIFF" || magic == b"RIFX" || magic == b"RF64" || magic == b"BW64";
 
         if !is_riff_family {
-            return Err(MediaInfoError::InvalidData("Not a valid RIFF/RF64 file".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not a valid RIFF/RF64 file".to_string(),
+            ));
         }
 
         let form_type = &data[8..12];
@@ -66,8 +69,14 @@ impl RiffDemuxer {
             if chunk_id == b"ds64" && payload.len() >= 16 {
                 // RF64 64-bit size chunk
                 let ds_data_size = u64::from_le_bytes([
-                    payload[8], payload[9], payload[10], payload[11],
-                    payload[12], payload[13], payload[14], payload[15],
+                    payload[8],
+                    payload[9],
+                    payload[10],
+                    payload[11],
+                    payload[12],
+                    payload[13],
+                    payload[14],
+                    payload[15],
                 ]);
                 if ds_data_size > 0 {
                     data_chunk_size = ds_data_size;
@@ -75,8 +84,10 @@ impl RiffDemuxer {
             } else if chunk_id == b"fmt " && payload.len() >= 16 {
                 let format_tag = u16::from_le_bytes([payload[0], payload[1]]);
                 let channels = u16::from_le_bytes([payload[2], payload[3]]) as u32;
-                let sample_rate = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
-                let byte_rate = u32::from_le_bytes([payload[8], payload[9], payload[10], payload[11]]);
+                let sample_rate =
+                    u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
+                let byte_rate =
+                    u32::from_le_bytes([payload[8], payload[9], payload[10], payload[11]]);
                 let _block_align = u16::from_le_bytes([payload[12], payload[13]]);
                 let mut bit_depth = u16::from_le_bytes([payload[14], payload[15]]) as u8;
 
@@ -98,10 +109,12 @@ impl RiffDemuxer {
                     if valid_bits > 0 {
                         bit_depth = valid_bits;
                     }
-                    let channel_mask = u32::from_le_bytes([payload[20], payload[21], payload[22], payload[23]]);
+                    let channel_mask =
+                        u32::from_le_bytes([payload[20], payload[21], payload[22], payload[23]]);
                     if (channel_mask & 0x003F) == 0x003F {
                         channel_layout = AudioChannelLayout::Surround5_1;
-                    } else if (channel_mask & 0x00FF) == 0x00FF || (channel_mask & 0x063F) == 0x063F {
+                    } else if (channel_mask & 0x00FF) == 0x00FF || (channel_mask & 0x063F) == 0x063F
+                    {
                         channel_layout = AudioChannelLayout::Surround7_1;
                     } else if channel_mask == 0x0004 {
                         channel_layout = AudioChannelLayout::Mono;
@@ -109,7 +122,8 @@ impl RiffDemuxer {
                         channel_layout = AudioChannelLayout::Stereo;
                     }
 
-                    let subformat_guid_code = u32::from_le_bytes([payload[24], payload[25], payload[26], payload[27]]);
+                    let subformat_guid_code =
+                        u32::from_le_bytes([payload[24], payload[25], payload[26], payload[27]]);
                     match subformat_guid_code {
                         0x0003 => {
                             audio_track.format = AudioCodec::PCM;
@@ -134,11 +148,13 @@ impl RiffDemuxer {
 
                 audio_track.bit_depth = Some(bit_depth);
                 audio_track.channel_layout = Some(channel_layout);
-                audio_track.compression_mode = Some(if format_tag == 1 || format_tag == 3 || format_tag == 0xFFFE {
-                    "Lossless".to_string()
-                } else {
-                    "Lossy".to_string()
-                });
+                audio_track.compression_mode = Some(
+                    if format_tag == 1 || format_tag == 3 || format_tag == 0xFFFE {
+                        "Lossless".to_string()
+                    } else {
+                        "Lossy".to_string()
+                    },
+                );
             } else if chunk_id == b"bext" && payload.len() >= 346 {
                 Self::parse_bext_chunk(payload, report);
             } else if (chunk_id == b"iXML" || chunk_id == b"ixml") && !payload.is_empty() {
@@ -194,10 +210,14 @@ impl RiffDemuxer {
             let payload = &data[payload_offset..payload_offset + chunk_size];
 
             if chunk_id == b"avih" && payload.len() >= 40 {
-                let microsec_per_frame = u32::from_le_bytes([payload[0], payload[1], payload[2], payload[3]]);
-                let total_frames = u32::from_le_bytes([payload[16], payload[17], payload[18], payload[19]]);
-                let width = u32::from_le_bytes([payload[32], payload[33], payload[34], payload[35]]);
-                let height = u32::from_le_bytes([payload[36], payload[37], payload[38], payload[39]]);
+                let microsec_per_frame =
+                    u32::from_le_bytes([payload[0], payload[1], payload[2], payload[3]]);
+                let total_frames =
+                    u32::from_le_bytes([payload[16], payload[17], payload[18], payload[19]]);
+                let width =
+                    u32::from_le_bytes([payload[32], payload[33], payload[34], payload[35]]);
+                let height =
+                    u32::from_le_bytes([payload[36], payload[37], payload[38], payload[39]]);
 
                 if microsec_per_frame > 0 {
                     let fps = 1_000_000.0 / microsec_per_frame as f64;
@@ -220,7 +240,9 @@ impl RiffDemuxer {
                 if stream_type == b"vids" {
                     video_track.codec_id = Some(handler_str.clone());
                     video_track.format = match handler {
-                        b"H264" | b"h264" | b"X264" | b"x264" | b"AVC1" | b"avc1" => VideoCodec::AVC,
+                        b"H264" | b"h264" | b"X264" | b"x264" | b"AVC1" | b"avc1" => {
+                            VideoCodec::AVC
+                        }
                         b"HEVC" | b"hevc" | b"H265" | b"h265" => VideoCodec::HEVC,
                         b"XVID" | b"xvid" | b"DIVX" | b"divx" | b"DX50" => VideoCodec::MPEG4Visual,
                         _ => VideoCodec::Other(handler_str),
@@ -264,12 +286,9 @@ impl RiffDemuxer {
     fn parse_riff_info_list(mut info_data: &[u8], report: &mut MediaReport) {
         while info_data.len() >= 8 {
             let fourcc = &info_data[0..4];
-            let chunk_size = u32::from_le_bytes([
-                info_data[4],
-                info_data[5],
-                info_data[6],
-                info_data[7],
-            ]) as usize;
+            let chunk_size =
+                u32::from_le_bytes([info_data[4], info_data[5], info_data[6], info_data[7]])
+                    as usize;
 
             let payload_offset = 8;
             if payload_offset + chunk_size > info_data.len() {
@@ -306,14 +325,35 @@ impl RiffDemuxer {
         if payload.len() < 346 {
             return;
         }
-        let desc = String::from_utf8_lossy(&payload[0..256]).trim_end_matches('\0').trim().to_string();
-        let orig = String::from_utf8_lossy(&payload[256..288]).trim_end_matches('\0').trim().to_string();
-        let orig_ref = String::from_utf8_lossy(&payload[288..320]).trim_end_matches('\0').trim().to_string();
-        let orig_date = String::from_utf8_lossy(&payload[320..330]).trim_end_matches('\0').trim().to_string();
-        let orig_time = String::from_utf8_lossy(&payload[330..338]).trim_end_matches('\0').trim().to_string();
+        let desc = String::from_utf8_lossy(&payload[0..256])
+            .trim_end_matches('\0')
+            .trim()
+            .to_string();
+        let orig = String::from_utf8_lossy(&payload[256..288])
+            .trim_end_matches('\0')
+            .trim()
+            .to_string();
+        let orig_ref = String::from_utf8_lossy(&payload[288..320])
+            .trim_end_matches('\0')
+            .trim()
+            .to_string();
+        let orig_date = String::from_utf8_lossy(&payload[320..330])
+            .trim_end_matches('\0')
+            .trim()
+            .to_string();
+        let orig_time = String::from_utf8_lossy(&payload[330..338])
+            .trim_end_matches('\0')
+            .trim()
+            .to_string();
         let time_ref = u64::from_le_bytes([
-            payload[338], payload[339], payload[340], payload[341],
-            payload[342], payload[343], payload[344], payload[345],
+            payload[338],
+            payload[339],
+            payload[340],
+            payload[341],
+            payload[342],
+            payload[343],
+            payload[344],
+            payload[345],
         ]);
 
         if !desc.is_empty() && report.general.title.is_none() {
@@ -330,10 +370,22 @@ impl RiffDemuxer {
             });
         }
 
-        report.general.extra.insert("BWF:Description".to_string(), desc);
-        report.general.extra.insert("BWF:Originator".to_string(), orig);
-        report.general.extra.insert("BWF:OriginatorReference".to_string(), orig_ref);
-        report.general.extra.insert("BWF:TimeReference".to_string(), time_ref.to_string());
+        report
+            .general
+            .extra
+            .insert("BWF:Description".to_string(), desc);
+        report
+            .general
+            .extra
+            .insert("BWF:Originator".to_string(), orig);
+        report
+            .general
+            .extra
+            .insert("BWF:OriginatorReference".to_string(), orig_ref);
+        report
+            .general
+            .extra
+            .insert("BWF:TimeReference".to_string(), time_ref.to_string());
 
         // BWF version 1/2 loudness metadata (offset 412..422)
         if payload.len() >= 422 {
@@ -344,19 +396,34 @@ impl RiffDemuxer {
             let max_short_term = i16::from_le_bytes([payload[420], payload[421]]) as f64 / 100.0;
 
             if loudness_val != 0.0 {
-                report.general.extra.insert("EBU R128:IntegratedLoudness".to_string(), format!("{:.2} LUFS", loudness_val));
+                report.general.extra.insert(
+                    "EBU R128:IntegratedLoudness".to_string(),
+                    format!("{:.2} LUFS", loudness_val),
+                );
             }
             if loudness_range != 0.0 {
-                report.general.extra.insert("EBU R128:LoudnessRange".to_string(), format!("{:.2} LU", loudness_range));
+                report.general.extra.insert(
+                    "EBU R128:LoudnessRange".to_string(),
+                    format!("{:.2} LU", loudness_range),
+                );
             }
             if max_true_peak != 0.0 {
-                report.general.extra.insert("EBU R128:MaxTruePeak".to_string(), format!("{:.2} dBFS", max_true_peak));
+                report.general.extra.insert(
+                    "EBU R128:MaxTruePeak".to_string(),
+                    format!("{:.2} dBFS", max_true_peak),
+                );
             }
             if max_momentary != 0.0 {
-                report.general.extra.insert("EBU R128:MaxMomentaryLoudness".to_string(), format!("{:.2} LUFS", max_momentary));
+                report.general.extra.insert(
+                    "EBU R128:MaxMomentaryLoudness".to_string(),
+                    format!("{:.2} LUFS", max_momentary),
+                );
             }
             if max_short_term != 0.0 {
-                report.general.extra.insert("EBU R128:MaxShortTermLoudness".to_string(), format!("{:.2} LUFS", max_short_term));
+                report.general.extra.insert(
+                    "EBU R128:MaxShortTermLoudness".to_string(),
+                    format!("{:.2} LUFS", max_short_term),
+                );
             }
         }
     }
@@ -377,7 +444,10 @@ impl RiffDemuxer {
         };
 
         if let Some(project) = extract_tag("PROJECT") {
-            report.general.extra.insert("iXML:Project".to_string(), project);
+            report
+                .general
+                .extra
+                .insert("iXML:Project".to_string(), project);
         }
         if let Some(scene) = extract_tag("SCENE") {
             report.general.extra.insert("iXML:Scene".to_string(), scene);

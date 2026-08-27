@@ -31,13 +31,21 @@ impl FormatDetector {
                     }
                 }
                 return ContainerFormat::MPEG4;
-            } else if box_type == b"moov" || box_type == b"mdat" || box_type == b"wide" || box_type == b"skip" {
+            } else if box_type == b"moov"
+                || box_type == b"mdat"
+                || box_type == b"wide"
+                || box_type == b"skip"
+            {
                 return ContainerFormat::MPEG4;
             }
         }
 
         // RIFF (AVI / WAV) or RF64 / BW64
-        if prefix.starts_with(b"RIFF") || prefix.starts_with(b"RIFX") || prefix.starts_with(b"RF64") || prefix.starts_with(b"BW64") {
+        if prefix.starts_with(b"RIFF")
+            || prefix.starts_with(b"RIFX")
+            || prefix.starts_with(b"RF64")
+            || prefix.starts_with(b"BW64")
+        {
             if prefix.len() >= 12 {
                 let form_type = &prefix[8..12];
                 if form_type == b"AVI " || form_type == b"AVIX" {
@@ -182,7 +190,10 @@ impl FormatDetector {
         }
 
         // SubStation Alpha (ASS/SSA): "[Script Info]" or "[V4+ Styles]"
-        if prefix.starts_with(b"[Script Info]") || prefix.starts_with(b"\xEF\xBB\xBF[Script Info]") || prefix.starts_with(b"[V4+ Styles]") {
+        if prefix.starts_with(b"[Script Info]")
+            || prefix.starts_with(b"\xEF\xBB\xBF[Script Info]")
+            || prefix.starts_with(b"[V4+ Styles]")
+        {
             return ContainerFormat::ASS;
         }
 

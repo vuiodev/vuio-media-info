@@ -1,6 +1,6 @@
+use crate::types::ContainerFormat;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::types::ContainerFormat;
 
 /// General metadata track for the entire media file / container.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

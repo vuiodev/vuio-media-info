@@ -30,7 +30,9 @@ impl MxfDemuxer {
         }
 
         if !data.starts_with(&MXF_SMPTE_PREFIX) {
-            return Err(MediaInfoError::InvalidData("Not a valid MXF file (missing SMPTE UL prefix)".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not a valid MXF file (missing SMPTE UL prefix)".to_string(),
+            ));
         }
 
         let mut report = MediaReport::new();
@@ -81,10 +83,15 @@ impl MxfDemuxer {
             // Check sets by last 4 bytes of 16-byte key
             let key_tail = &key[12..16];
 
-            if key_tail == KEY_CDCI_DESCRIPTOR || key_tail == KEY_RGBA_DESCRIPTOR || key_tail == KEY_MPEG2_DESCRIPTOR {
+            if key_tail == KEY_CDCI_DESCRIPTOR
+                || key_tail == KEY_RGBA_DESCRIPTOR
+                || key_tail == KEY_MPEG2_DESCRIPTOR
+            {
                 Self::parse_picture_essence_descriptor(value, &mut video_track);
                 has_video = true;
-            } else if key_tail == KEY_WAVE_AUDIO_DESCRIPTOR || key_tail == KEY_GENERIC_SOUND_DESCRIPTOR {
+            } else if key_tail == KEY_WAVE_AUDIO_DESCRIPTOR
+                || key_tail == KEY_GENERIC_SOUND_DESCRIPTOR
+            {
                 Self::parse_sound_essence_descriptor(value, &mut audio_track);
                 has_audio = true;
             } else if key_tail == KEY_IDENTIFICATION_SET {
@@ -132,7 +139,10 @@ impl MxfDemuxer {
 
     fn parse_ber_length(data: &[u8]) -> Result<(usize, usize)> {
         if data.is_empty() {
-            return Err(MediaInfoError::UnexpectedEof { expected: 1, actual: 0 });
+            return Err(MediaInfoError::UnexpectedEof {
+                expected: 1,
+                actual: 0,
+            });
         }
         let first = data[0];
         if first < 0x80 {
@@ -140,7 +150,9 @@ impl MxfDemuxer {
         } else {
             let num_bytes = (first & 0x7F) as usize;
             if num_bytes == 0 || num_bytes > 8 || data.len() < 1 + num_bytes {
-                return Err(MediaInfoError::InvalidData("Invalid BER length".to_string()));
+                return Err(MediaInfoError::InvalidData(
+                    "Invalid BER length".to_string(),
+                ));
             }
             let mut val = 0usize;
             for &b in &data[1..1 + num_bytes] {
@@ -183,7 +195,11 @@ impl MxfDemuxer {
                 }
                 0x320C if !val.is_empty() => {
                     // FrameLayout: 0=FullFrame/Progressive, 1=SeparateFields/Interlaced
-                    track.scan_type = Some(if val[0] == 0 { "Progressive".to_string() } else { "Interlaced".to_string() });
+                    track.scan_type = Some(if val[0] == 0 {
+                        "Progressive".to_string()
+                    } else {
+                        "Interlaced".to_string()
+                    });
                 }
                 0x3201 if val.len() >= 16 => {
                     // PictureEssenceCoding (16-byte UL)
@@ -235,7 +251,8 @@ impl MxfDemuxer {
                 }
                 0x3D01 if val.len() >= 4 => {
                     // QuantizationBits
-                    track.bit_depth = Some(u32::from_be_bytes([val[0], val[1], val[2], val[3]]) as u8);
+                    track.bit_depth =
+                        Some(u32::from_be_bytes([val[0], val[1], val[2], val[3]]) as u8);
                 }
                 _ => {}
             }
@@ -313,8 +330,7 @@ impl MxfDemuxer {
             if tag == 0x0202 && val.len() >= 8 {
                 // Duration in edit units
                 return Some(u64::from_be_bytes([
-                    val[0], val[1], val[2], val[3],
-                    val[4], val[5], val[6], val[7],
+                    val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7],
                 ]));
             }
         }
@@ -327,11 +343,16 @@ impl MxfDemuxer {
             return VideoCodec::Other("MXF Video".to_string());
         }
         // AVC-Intra / H.264
-        if ul[0..8] == [0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x0D] || ul.windows(4).any(|w| w == b"avc1" || w == b"h264") {
+        if ul[0..8] == [0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x0D]
+            || ul.windows(4).any(|w| w == b"avc1" || w == b"h264")
+        {
             return VideoCodec::AVC;
         }
         // ProRes
-        if ul.windows(4).any(|w| w == b"apch" || w == b"apcn" || w == b"apcs" || w == b"apco" || w == b"ap4h") {
+        if ul
+            .windows(4)
+            .any(|w| w == b"apch" || w == b"apcn" || w == b"apcs" || w == b"apco" || w == b"ap4h")
+        {
             return VideoCodec::ProRes;
         }
         // DNxHD
@@ -358,6 +379,9 @@ mod tests {
     #[test]
     fn test_mxf_ber_length() {
         assert_eq!(MxfDemuxer::parse_ber_length(&[0x18]).unwrap(), (24, 1));
-        assert_eq!(MxfDemuxer::parse_ber_length(&[0x82, 0x01, 0x00]).unwrap(), (256, 3));
+        assert_eq!(
+            MxfDemuxer::parse_ber_length(&[0x82, 0x01, 0x00]).unwrap(),
+            (256, 3)
+        );
     }
 }

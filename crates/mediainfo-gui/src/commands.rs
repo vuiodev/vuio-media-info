@@ -46,15 +46,18 @@ pub fn get_initial_files(state: tauri::State<CliState>) -> Vec<String> {
     for arg in raw_args {
         let p = Path::new(&arg);
         if p.is_dir() {
-            for entry in jwalk::WalkDir::new(p).sort(true).skip_hidden(true) {
-                if let Ok(entry) = entry {
-                    if entry.file_type().is_file() {
-                        let path = entry.path();
-                        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                            if ContainerFormat::is_supported_extension(ext) {
-                                if let Some(path_str) = path.to_str() {
-                                    resolved_files.push(path_str.to_string());
-                                }
+            for entry in jwalk::WalkDir::new(p)
+                .sort(true)
+                .skip_hidden(true)
+                .into_iter()
+                .flatten()
+            {
+                if entry.file_type().is_file() {
+                    let path = entry.path();
+                    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                        if ContainerFormat::is_supported_extension(ext) {
+                            if let Some(path_str) = path.to_str() {
+                                resolved_files.push(path_str.to_string());
                             }
                         }
                     }
@@ -92,7 +95,10 @@ pub fn scan_folder(folder_path: String) -> Result<Vec<MediaReport>, String> {
         }
     }
 
-    eprintln!("[cmd] scan_folder found {} media files, inspecting in parallel...", file_paths.len());
+    eprintln!(
+        "[cmd] scan_folder found {} media files, inspecting in parallel...",
+        file_paths.len()
+    );
     let reports: Vec<MediaReport> = file_paths
         .par_iter()
         .filter_map(|path| MediaInfo::open_path(path).ok())
@@ -110,9 +116,13 @@ pub fn start_window_drag(window: tauri::WebviewWindow) -> Result<(), String> {
 #[tauri::command]
 pub fn inspect_file(path: String) -> Result<MediaReport, String> {
     eprintln!("[cmd] inspect_file(\"{}\")", path);
-    let result = MediaInfo::open_path(&path).map_err(|e| format!("Failed to inspect '{}': {}", path, e));
+    let result =
+        MediaInfo::open_path(&path).map_err(|e| format!("Failed to inspect '{}': {}", path, e));
     match &result {
-        Ok(r) => eprintln!("[cmd] inspect_file OK: format={}", r.general.format.display_name()),
+        Ok(r) => eprintln!(
+            "[cmd] inspect_file OK: format={}",
+            r.general.format.display_name()
+        ),
         Err(e) => eprintln!("[cmd] inspect_file ERR: {}", e),
     }
     result

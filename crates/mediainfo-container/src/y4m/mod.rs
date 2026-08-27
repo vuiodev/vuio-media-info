@@ -19,7 +19,9 @@ impl Y4mDemuxer {
         }
 
         if !data.starts_with(&Y4M_MAGIC) {
-            return Err(MediaInfoError::InvalidData("Not a valid Y4M file".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not a valid Y4M file".to_string(),
+            ));
         }
 
         let mut report = MediaReport::new();
@@ -27,7 +29,10 @@ impl Y4mDemuxer {
         report.general.file_size = data.len() as u64;
 
         // Find end of header line (0x0A)
-        let header_end = data.iter().position(|&b| b == b'\n').unwrap_or(data.len().min(512));
+        let header_end = data
+            .iter()
+            .position(|&b| b == b'\n')
+            .unwrap_or(data.len().min(512));
         let header_str = String::from_utf8_lossy(&data[0..header_end]);
 
         let mut video_track = VideoTrack::default();
@@ -57,7 +62,9 @@ impl Y4mDemuxer {
                 "F" => {
                     let parts: Vec<&str> = val.split(':').collect();
                     if parts.len() == 2 {
-                        if let (Ok(num), Ok(den)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
+                        if let (Ok(num), Ok(den)) =
+                            (parts[0].parse::<f64>(), parts[1].parse::<f64>())
+                        {
                             if den > 0.0 {
                                 video_track.frame_rate = Some(num / den);
                             }
@@ -74,7 +81,9 @@ impl Y4mDemuxer {
                 "A" => {
                     let parts: Vec<&str> = val.split(':').collect();
                     if parts.len() == 2 {
-                        if let (Ok(num), Ok(den)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
+                        if let (Ok(num), Ok(den)) =
+                            (parts[0].parse::<f64>(), parts[1].parse::<f64>())
+                        {
                             if den > 0.0 {
                                 video_track.sample_aspect_ratio = Some(num / den);
                             }
@@ -117,6 +126,9 @@ mod tests {
         assert_eq!(report.videos[0].height, 1080);
         assert_eq!(report.videos[0].frame_rate, Some(24.0));
         assert_eq!(report.videos[0].bit_depth, 10);
-        assert_eq!(report.videos[0].chroma_subsampling, Some(ChromaSubsampling::YUV420));
+        assert_eq!(
+            report.videos[0].chroma_subsampling,
+            Some(ChromaSubsampling::YUV420)
+        );
     }
 }

@@ -204,7 +204,9 @@ impl Id3v2Tag {
             _ => String::from_utf8_lossy(payload).to_string(),
         };
 
-        let trimmed = s.trim_matches(|c: char| c == '\0' || c.is_whitespace()).to_string();
+        let trimmed = s
+            .trim_matches(|c: char| c == '\0' || c.is_whitespace())
+            .to_string();
         if trimmed.is_empty() {
             None
         } else {
@@ -247,7 +249,9 @@ impl Id3v2Tag {
         let payload = &data[1..];
         if let Some(pos) = payload.iter().position(|&b| b == 0) {
             let desc = String::from_utf8_lossy(&payload[0..pos]).trim().to_string();
-            let val = String::from_utf8_lossy(&payload[pos + 1..]).trim_matches(|c: char| c == '\0' || c.is_whitespace()).to_string();
+            let val = String::from_utf8_lossy(&payload[pos + 1..])
+                .trim_matches(|c: char| c == '\0' || c.is_whitespace())
+                .to_string();
             if !desc.is_empty() && !val.is_empty() {
                 tag.extra.insert(format!("TXXX:{}", desc), val);
             }

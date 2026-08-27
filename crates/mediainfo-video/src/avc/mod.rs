@@ -80,7 +80,11 @@ impl AvcSps {
                                 let delta_scale = r.read_se()?;
                                 next_scale = (last_scale + delta_scale + 256) % 256;
                             }
-                            last_scale = if next_scale == 0 { last_scale } else { next_scale };
+                            last_scale = if next_scale == 0 {
+                                last_scale
+                            } else {
+                                next_scale
+                            };
                         }
                     }
                 }
@@ -136,13 +140,15 @@ impl AvcSps {
         let crop_unit_y = match chroma_format_idc {
             0 => 2 - if frame_mbs_only_flag { 1 } else { 0 },
             1 => 2 * (2 - if frame_mbs_only_flag { 1 } else { 0 }),
-            2 => 1 * (2 - if frame_mbs_only_flag { 1 } else { 0 }),
-            3 => 1 * (2 - if frame_mbs_only_flag { 1 } else { 0 }),
+            2 => 2 - if frame_mbs_only_flag { 1 } else { 0 },
+            3 => 2 - if frame_mbs_only_flag { 1 } else { 0 },
             _ => 1,
         };
 
         let raw_width = (pic_width_in_mbs_minus1 + 1) * 16;
-        let raw_height = (pic_height_in_map_units_minus1 + 1) * 16 * (2 - if frame_mbs_only_flag { 1 } else { 0 });
+        let raw_height = (pic_height_in_map_units_minus1 + 1)
+            * 16
+            * (2 - if frame_mbs_only_flag { 1 } else { 0 });
 
         let width = raw_width.saturating_sub((crop_left + crop_right) * crop_unit_x);
         let height = raw_height.saturating_sub((crop_top + crop_bottom) * crop_unit_y);

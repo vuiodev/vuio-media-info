@@ -43,8 +43,10 @@ impl ExifTags {
             return Ok(None);
         }
 
-        let mut exif = ExifTags::default();
-        exif.software = Some("EXIF standard".to_string());
+        let exif = ExifTags {
+            software: Some("EXIF standard".to_string()),
+            ..Default::default()
+        };
 
         Ok(Some(exif))
     }

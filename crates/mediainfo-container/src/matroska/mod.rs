@@ -1,10 +1,5 @@
 use mediainfo_audio::{AacInfo, Ac3Header, DtsHeader, FlacStreamInfo, OpusHead, TrueHdHeader};
-use mediainfo_core::{
-    bitstream::EbmlVint,
-    error::Result,
-    models::*,
-    types::*,
-};
+use mediainfo_core::{bitstream::EbmlVint, error::Result, models::*, types::*};
 use mediainfo_video::{AvcSps, HevcSps};
 
 /// Matroska (MKV) and WebM EBML container demuxer.
@@ -31,7 +26,8 @@ impl MatroskaDemuxer {
             };
 
             let header_len = id_len + size_len;
-            let element_size = size_opt.unwrap_or(data.len() as u64 - (offset + header_len) as u64) as usize;
+            let element_size =
+                size_opt.unwrap_or(data.len() as u64 - (offset + header_len) as u64) as usize;
             let payload_offset = offset + header_len;
             let payload = if payload_offset + element_size <= data.len() {
                 &data[payload_offset..payload_offset + element_size]
@@ -183,10 +179,13 @@ impl MatroskaDemuxer {
                 0x4489 => {
                     // Duration (float)
                     if size == 4 {
-                        duration_float = f32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]) as f64;
+                        duration_float =
+                            f32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]])
+                                as f64;
                     } else if size == 8 {
                         duration_float = f64::from_be_bytes([
-                            payload[0], payload[1], payload[2], payload[3], payload[4], payload[5], payload[6], payload[7],
+                            payload[0], payload[1], payload[2], payload[3], payload[4], payload[5],
+                            payload[6], payload[7],
                         ]);
                     }
                 }
@@ -196,11 +195,13 @@ impl MatroskaDemuxer {
                 }
                 0x4D80 => {
                     // MuxingApp
-                    report.general.encoded_application = Some(String::from_utf8_lossy(payload).to_string());
+                    report.general.encoded_application =
+                        Some(String::from_utf8_lossy(payload).to_string());
                 }
                 0x5741 => {
                     // WritingApp
-                    report.general.encoded_library = Some(String::from_utf8_lossy(payload).to_string());
+                    report.general.encoded_library =
+                        Some(String::from_utf8_lossy(payload).to_string());
                 }
                 _ => {}
             }
@@ -248,7 +249,12 @@ impl MatroskaDemuxer {
         }
     }
 
-    fn parse_track_entry(data: &[u8], stream_id: u32, _timecode_scale: u64, report: &mut MediaReport) {
+    fn parse_track_entry(
+        data: &[u8],
+        stream_id: u32,
+        _timecode_scale: u64,
+        report: &mut MediaReport,
+    ) {
         let mut offset = 0;
         let mut track_type = 0u8;
         let mut codec_id = String::new();
@@ -315,10 +321,13 @@ impl MatroskaDemuxer {
                 }
                 0x23E383 => {
                     if size == 4 {
-                        default_duration_ns = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]) as u64;
+                        default_duration_ns =
+                            u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]])
+                                as u64;
                     } else if size == 8 {
                         default_duration_ns = u64::from_be_bytes([
-                            payload[0], payload[1], payload[2], payload[3], payload[4], payload[5], payload[6], payload[7],
+                            payload[0], payload[1], payload[2], payload[3], payload[4], payload[5],
+                            payload[6], payload[7],
                         ]);
                     }
                 }
@@ -371,7 +380,9 @@ impl MatroskaDemuxer {
                         }
                     }
                 }
-            } else if (codec_id == "V_MPEGH/ISO/HEVC" || codec_id == "V_MS/VFW/FOURCC") && !codec_private.is_empty() {
+            } else if (codec_id == "V_MPEGH/ISO/HEVC" || codec_id == "V_MS/VFW/FOURCC")
+                && !codec_private.is_empty()
+            {
                 v.format = VideoCodec::HEVC;
                 v.format_info = Some("High Efficiency Video Coding".to_string());
                 if codec_private.len() >= 23 {
@@ -447,7 +458,8 @@ impl MatroskaDemuxer {
                         a.channel_layout = Some(ac3.channel_layout);
                         a.bit_depth = Some(24);
                         if ac3.dolby_atmos_present {
-                            a.format_info = Some("Dolby Digital Plus with Dolby Atmos (JOC)".to_string());
+                            a.format_info =
+                                Some("Dolby Digital Plus with Dolby Atmos (JOC)".to_string());
                         }
                     }
                 }
@@ -547,14 +559,16 @@ impl MatroskaDemuxer {
                     if size == 2 {
                         track.width = u16::from_be_bytes([payload[0], payload[1]]) as u32;
                     } else if size == 4 {
-                        track.width = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
+                        track.width =
+                            u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
                     }
                 }
                 0xBA => {
                     if size == 2 {
                         track.height = u16::from_be_bytes([payload[0], payload[1]]) as u32;
                     } else if size == 4 {
-                        track.height = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
+                        track.height =
+                            u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
                     }
                 }
                 0x55B0 => {
@@ -598,12 +612,17 @@ impl MatroskaDemuxer {
                 }
                 0x55B9 => {
                     if let Some(&val) = payload.first() {
-                        track.color_range = Some(if val == 1 { ColorRange::Full } else { ColorRange::Limited });
+                        track.color_range = Some(if val == 1 {
+                            ColorRange::Full
+                        } else {
+                            ColorRange::Limited
+                        });
                     }
                 }
                 0x55BA => {
                     if let Some(&val) = payload.first() {
-                        track.transfer_characteristics = Some(TransferCharacteristics::from_u8(val));
+                        track.transfer_characteristics =
+                            Some(TransferCharacteristics::from_u8(val));
                     }
                 }
                 0x55BB => {
@@ -620,7 +639,10 @@ impl MatroskaDemuxer {
                         0
                     };
                     if track.content_light_level.is_none() {
-                        track.content_light_level = Some(ContentLightLevel { max_cll, max_fall: 0 });
+                        track.content_light_level = Some(ContentLightLevel {
+                            max_cll,
+                            max_fall: 0,
+                        });
                     } else if let Some(ref mut cll) = track.content_light_level {
                         cll.max_cll = max_cll;
                     }
@@ -634,7 +656,10 @@ impl MatroskaDemuxer {
                         0
                     };
                     if track.content_light_level.is_none() {
-                        track.content_light_level = Some(ContentLightLevel { max_cll: 0, max_fall });
+                        track.content_light_level = Some(ContentLightLevel {
+                            max_cll: 0,
+                            max_fall,
+                        });
                     } else if let Some(ref mut cll) = track.content_light_level {
                         cll.max_fall = max_fall;
                     }
@@ -667,10 +692,13 @@ impl MatroskaDemuxer {
             match id {
                 0xB5 => {
                     if size == 4 {
-                        track.sampling_rate = f32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]) as u32;
+                        track.sampling_rate =
+                            f32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]])
+                                as u32;
                     } else if size == 8 {
                         track.sampling_rate = f64::from_be_bytes([
-                            payload[0], payload[1], payload[2], payload[3], payload[4], payload[5], payload[6], payload[7],
+                            payload[0], payload[1], payload[2], payload[3], payload[4], payload[5],
+                            payload[6], payload[7],
                         ]) as u32;
                     }
                 }
@@ -754,10 +782,11 @@ impl MatroskaDemuxer {
                         Ok(res) => res,
                         Err(_) => break,
                     };
-                    let (asize_opt, asize_len) = match EbmlVint::read_element_size(payload, atom_off + aid_len) {
-                        Ok(res) => res,
-                        Err(_) => break,
-                    };
+                    let (asize_opt, asize_len) =
+                        match EbmlVint::read_element_size(payload, atom_off + aid_len) {
+                            Ok(res) => res,
+                            Err(_) => break,
+                        };
                     let asize = asize_opt.unwrap_or(0) as usize;
                     let apayload_off = atom_off + aid_len + asize_len;
                     if apayload_off + asize > payload.len() {
@@ -767,10 +796,22 @@ impl MatroskaDemuxer {
 
                     if aid == 0x91 {
                         if asize == 4 {
-                            time_start_ns = u32::from_be_bytes([apayload[0], apayload[1], apayload[2], apayload[3]]) as u64;
+                            time_start_ns = u32::from_be_bytes([
+                                apayload[0],
+                                apayload[1],
+                                apayload[2],
+                                apayload[3],
+                            ]) as u64;
                         } else if asize == 8 {
                             time_start_ns = u64::from_be_bytes([
-                                apayload[0], apayload[1], apayload[2], apayload[3], apayload[4], apayload[5], apayload[6], apayload[7],
+                                apayload[0],
+                                apayload[1],
+                                apayload[2],
+                                apayload[3],
+                                apayload[4],
+                                apayload[5],
+                                apayload[6],
+                                apayload[7],
                             ]);
                         }
                     } else if aid == 0x80 {
@@ -784,7 +825,11 @@ impl MatroskaDemuxer {
 
                 menu.chapters.push(Chapter {
                     timestamp_ms: (time_start_ns as f64) / 1_000_000.0,
-                    title: if title.is_empty() { format!("Chapter {}", menu.chapters.len() + 1) } else { title },
+                    title: if title.is_empty() {
+                        format!("Chapter {}", menu.chapters.len() + 1)
+                    } else {
+                        title
+                    },
                     language: None,
                 });
             }
@@ -822,10 +867,11 @@ impl MatroskaDemuxer {
                         Ok(res) => res,
                         Err(_) => break,
                     };
-                    let (asize_opt, asize_len) = match EbmlVint::read_element_size(payload, att_off + aid_len) {
-                        Ok(res) => res,
-                        Err(_) => break,
-                    };
+                    let (asize_opt, asize_len) =
+                        match EbmlVint::read_element_size(payload, att_off + aid_len) {
+                            Ok(res) => res,
+                            Err(_) => break,
+                        };
                     let asize = asize_opt.unwrap_or(0) as usize;
                     let apayload_off = att_off + aid_len + asize_len;
                     if apayload_off + asize > payload.len() {
@@ -893,23 +939,29 @@ impl MatroskaDemuxer {
                         Ok(res) => res,
                         Err(_) => break,
                     };
-                    let (bsize_opt, bsize_len) = match EbmlVint::read_element_size(payload, b_off + bid_len) {
-                        Ok(res) => res,
-                        Err(_) => break,
-                    };
+                    let (bsize_opt, bsize_len) =
+                        match EbmlVint::read_element_size(payload, b_off + bid_len) {
+                            Ok(res) => res,
+                            Err(_) => break,
+                        };
                     let bsize = bsize_opt.unwrap_or(0) as usize;
                     let bpay_off = b_off + bid_len + bsize_len;
                     if bpay_off + bsize > payload.len() {
                         break;
                     }
                     if bid == 0xA1 || bid == 0xA3 {
-                        Self::probe_block_for_audio(&payload[bpay_off..bpay_off + bsize], &mut probed_tracks, report);
+                        Self::probe_block_for_audio(
+                            &payload[bpay_off..bpay_off + bsize],
+                            &mut probed_tracks,
+                            report,
+                        );
                     }
                     b_off = bpay_off + bsize;
                 }
             }
 
-            let all_audios_have_bitrate = !report.audios.is_empty() && report.audios.iter().all(|a| a.bit_rate.is_some());
+            let all_audios_have_bitrate =
+                !report.audios.is_empty() && report.audios.iter().all(|a| a.bit_rate.is_some());
             if all_audios_have_bitrate {
                 break;
             }
@@ -989,7 +1041,10 @@ impl MatroskaDemuxer {
             }
 
             // Check for AC-3 / E-AC-3 (0x0B77)
-            if let Some(pos) = frame_payload.windows(2).position(|w| w == [0x0B, 0x77] || w == [0x77, 0x0B]) {
+            if let Some(pos) = frame_payload
+                .windows(2)
+                .position(|w| w == [0x0B, 0x77] || w == [0x77, 0x0B])
+            {
                 let slice = if frame_payload[pos] == 0x77 {
                     let mut swapped = Vec::with_capacity(frame_payload.len() - pos);
                     for chunk in frame_payload[pos..].chunks_exact(2) {
@@ -1010,7 +1065,8 @@ impl MatroskaDemuxer {
                     if ac3.is_eac3 {
                         audio.format = AudioCodec::EAC3;
                         if ac3.dolby_atmos_present {
-                            audio.format_info = Some("Dolby Digital Plus with Dolby Atmos (JOC)".to_string());
+                            audio.format_info =
+                                Some("Dolby Digital Plus with Dolby Atmos (JOC)".to_string());
                         } else {
                             audio.format_info = Some("Dolby Digital Plus".to_string());
                         }
@@ -1046,9 +1102,10 @@ impl MatroskaDemuxer {
             }
 
             // Check for TrueHD / MLP (0xF8726FBA / 0xF8726FA9)
-            if let Some(pos) = frame_payload.windows(4).position(|w| {
-                w == [0xF8, 0x72, 0x6F, 0xBA] || w == [0xF8, 0x72, 0x6F, 0xA9]
-            }) {
+            if let Some(pos) = frame_payload
+                .windows(4)
+                .position(|w| w == [0xF8, 0x72, 0x6F, 0xBA] || w == [0xF8, 0x72, 0x6F, 0xA9])
+            {
                 if let Ok(thd) = TrueHdHeader::parse(&frame_payload[pos..]) {
                     audio.sampling_rate = thd.sample_rate;
                     audio.channels = thd.channels;
@@ -1056,7 +1113,6 @@ impl MatroskaDemuxer {
                     audio.format_profile = Some(thd.format_profile);
                     audio.bit_depth = Some(thd.bit_depth);
                     probed_tracks.insert(track_num);
-                    return;
                 }
             }
         }
@@ -1118,10 +1174,11 @@ impl MatroskaDemuxer {
                         Ok(res) => res,
                         Err(_) => break,
                     };
-                    let (tsize_opt, tsize_len) = match EbmlVint::read_element_size(payload, tag_off + tid_len) {
-                        Ok(res) => res,
-                        Err(_) => break,
-                    };
+                    let (tsize_opt, tsize_len) =
+                        match EbmlVint::read_element_size(payload, tag_off + tid_len) {
+                            Ok(res) => res,
+                            Err(_) => break,
+                        };
                     let tsize = tsize_opt.unwrap_or(0) as usize;
                     let tpay_off = tag_off + tid_len + tsize_len;
                     if tpay_off + tsize > payload.len() {

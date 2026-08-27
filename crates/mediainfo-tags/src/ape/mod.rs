@@ -56,10 +56,12 @@ impl ApeTag {
         };
 
         let footer = &data[footer_offset..footer_offset + 32];
-        let tag_size = u32::from_le_bytes([footer[12], footer[13], footer[14], footer[15]]) as usize;
-        let item_count = u32::from_le_bytes([footer[16], footer[17], footer[18], footer[19]]) as usize;
+        let tag_size =
+            u32::from_le_bytes([footer[12], footer[13], footer[14], footer[15]]) as usize;
+        let item_count =
+            u32::from_le_bytes([footer[16], footer[17], footer[18], footer[19]]) as usize;
 
-        if tag_size < 32 || tag_size > 10 * 1024 * 1024 {
+        if !(32..=10 * 1024 * 1024).contains(&tag_size) {
             return Ok(None);
         }
 

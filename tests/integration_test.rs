@@ -13,11 +13,11 @@ fn test_cli_end_to_end_wav() {
     f.write_all(&(36u32 + 88200u32).to_le_bytes()).unwrap(); // file size - 8
     f.write_all(b"WAVEfmt ").unwrap();
     f.write_all(&16u32.to_le_bytes()).unwrap(); // Subchunk1Size
-    f.write_all(&1u16.to_le_bytes()).unwrap();  // PCM format
-    f.write_all(&2u16.to_le_bytes()).unwrap();  // 2 channels
+    f.write_all(&1u16.to_le_bytes()).unwrap(); // PCM format
+    f.write_all(&2u16.to_le_bytes()).unwrap(); // 2 channels
     f.write_all(&44100u32.to_le_bytes()).unwrap(); // SampleRate
     f.write_all(&(44100u32 * 4).to_le_bytes()).unwrap(); // ByteRate
-    f.write_all(&4u16.to_le_bytes()).unwrap();  // BlockAlign
+    f.write_all(&4u16.to_le_bytes()).unwrap(); // BlockAlign
     f.write_all(&16u16.to_le_bytes()).unwrap(); // BitsPerSample
     f.write_all(b"data").unwrap();
     f.write_all(&88200u32.to_le_bytes()).unwrap(); // 88200 bytes = 0.5s audio

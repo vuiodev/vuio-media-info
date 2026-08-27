@@ -5,18 +5,18 @@ use serde::{Deserialize, Serialize};
 #[allow(non_camel_case_types)]
 pub enum ColorPrimaries {
     Reserved0,
-    BT709,       // Rec. 709 / sRGB
+    BT709, // Rec. 709 / sRGB
     Unspecified,
     Reserved3,
-    BT470M,      // FCC
-    BT470BG,     // PAL / SECAM
-    SMPTE170M,   // NTSC
+    BT470M,    // FCC
+    BT470BG,   // PAL / SECAM
+    SMPTE170M, // NTSC
     SMPTE240M,
     Film,
-    BT2020,      // Rec. 2020 / Rec. 2100 (HDR)
-    SMPTE428,    // CIE 1931 XYZ
-    SMPTE431,    // DCI-P3 (Theatrical)
-    SMPTE432,    // Display P3 (D65)
+    BT2020,   // Rec. 2020 / Rec. 2100 (HDR)
+    SMPTE428, // CIE 1931 XYZ
+    SMPTE431, // DCI-P3 (Theatrical)
+    SMPTE432, // Display P3 (D65)
     EBU3213,
     Unknown(u8),
 }
@@ -76,9 +76,9 @@ pub enum TransferCharacteristics {
     IEC61966_2_1, // sRGB
     BT2020_10,
     BT2020_12,
-    SMPTE2084,   // PQ (Perceptual Quantizer / HDR10 / Dolby Vision)
+    SMPTE2084, // PQ (Perceptual Quantizer / HDR10 / Dolby Vision)
     SMPTE428,
-    ARIB_STD_B67,// HLG (Hybrid Log-Gamma)
+    ARIB_STD_B67, // HLG (Hybrid Log-Gamma)
     Unknown(u8),
 }
 
@@ -127,7 +127,7 @@ impl TransferCharacteristics {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[allow(non_camel_case_types)]
 pub enum MatrixCoefficients {
-    Identity,   // RGB / GBR
+    Identity, // RGB / GBR
     BT709,
     Unspecified,
     Reserved3,
@@ -141,7 +141,7 @@ pub enum MatrixCoefficients {
     SMPTE2085,  // YDzDx
     ChromaDerived_NCL,
     ChromaDerived_CL,
-    ICTCP,      // ICtCp (Dolby Vision / Rec. 2100)
+    ICTCP, // ICtCp (Dolby Vision / Rec. 2100)
     Unknown(u8),
 }
 

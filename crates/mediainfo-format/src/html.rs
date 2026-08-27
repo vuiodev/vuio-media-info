@@ -1,7 +1,4 @@
-use mediainfo_core::{
-    error::Result,
-    models::MediaReport,
-};
+use mediainfo_core::{error::Result, models::MediaReport};
 
 /// Formats `MediaReport` into a standalone, styled HTML document.
 pub struct HtmlFormatter;
@@ -24,24 +21,43 @@ impl HtmlFormatter {
 
         // General
         html.push_str("<div class=\"card\">\n");
-        html.push_str(&format!("<h2>General <span class=\"badge\">{}</span></h2>\n", report.general.format.display_name()));
+        html.push_str(&format!(
+            "<h2>General <span class=\"badge\">{}</span></h2>\n",
+            report.general.format.display_name()
+        ));
         html.push_str("<table>\n");
         if let Some(ref name) = report.general.file_name {
-            html.push_str(&format!("<tr><td class=\"label\">Complete name</td><td class=\"value\">{}</td></tr>\n", name));
+            html.push_str(&format!(
+                "<tr><td class=\"label\">Complete name</td><td class=\"value\">{}</td></tr>\n",
+                name
+            ));
         }
-        html.push_str(&format!("<tr><td class=\"label\">File size</td><td class=\"value\">{:.2} MB</td></tr>\n", report.general.file_size as f64 / (1024.0 * 1024.0)));
+        html.push_str(&format!(
+            "<tr><td class=\"label\">File size</td><td class=\"value\">{:.2} MB</td></tr>\n",
+            report.general.file_size as f64 / (1024.0 * 1024.0)
+        ));
         if let Some(dur) = report.general.duration_ms {
-            html.push_str(&format!("<tr><td class=\"label\">Duration</td><td class=\"value\">{:.1} s</td></tr>\n", dur / 1000.0));
+            html.push_str(&format!(
+                "<tr><td class=\"label\">Duration</td><td class=\"value\">{:.1} s</td></tr>\n",
+                dur / 1000.0
+            ));
         }
         if let Some(ref title) = report.general.title {
-            html.push_str(&format!("<tr><td class=\"label\">Title</td><td class=\"value\">{}</td></tr>\n", title));
+            html.push_str(&format!(
+                "<tr><td class=\"label\">Title</td><td class=\"value\">{}</td></tr>\n",
+                title
+            ));
         }
         html.push_str("</table>\n</div>\n");
 
         // Video
         for (i, v) in report.videos.iter().enumerate() {
             html.push_str("<div class=\"card\">\n");
-            html.push_str(&format!("<h2>Video #{} <span class=\"badge\">{}</span></h2>\n", i + 1, v.format.display_name()));
+            html.push_str(&format!(
+                "<h2>Video #{} <span class=\"badge\">{}</span></h2>\n",
+                i + 1,
+                v.format.display_name()
+            ));
             html.push_str("<table>\n");
             if v.width > 0 && v.height > 0 {
                 html.push_str(&format!("<tr><td class=\"label\">Resolution</td><td class=\"value\">{} &times; {}</td></tr>\n", v.width, v.height));
@@ -49,9 +65,15 @@ impl HtmlFormatter {
             if let Some(fps) = v.frame_rate {
                 html.push_str(&format!("<tr><td class=\"label\">Frame rate</td><td class=\"value\">{:.3} FPS</td></tr>\n", fps));
             }
-            html.push_str(&format!("<tr><td class=\"label\">Bit depth</td><td class=\"value\">{} bits</td></tr>\n", v.bit_depth));
+            html.push_str(&format!(
+                "<tr><td class=\"label\">Bit depth</td><td class=\"value\">{} bits</td></tr>\n",
+                v.bit_depth
+            ));
             if let Some(ref hdr) = v.hdr_format {
-                html.push_str(&format!("<tr><td class=\"label\">HDR format</td><td class=\"value\">{}</td></tr>\n", hdr));
+                html.push_str(&format!(
+                    "<tr><td class=\"label\">HDR format</td><td class=\"value\">{}</td></tr>\n",
+                    hdr
+                ));
             }
             html.push_str("</table>\n</div>\n");
         }
@@ -59,12 +81,22 @@ impl HtmlFormatter {
         // Audio
         for (i, a) in report.audios.iter().enumerate() {
             html.push_str("<div class=\"card\">\n");
-            html.push_str(&format!("<h2>Audio #{} <span class=\"badge\">{}</span></h2>\n", i + 1, a.format.display_name()));
+            html.push_str(&format!(
+                "<h2>Audio #{} <span class=\"badge\">{}</span></h2>\n",
+                i + 1,
+                a.format.display_name()
+            ));
             html.push_str("<table>\n");
-            html.push_str(&format!("<tr><td class=\"label\">Channels</td><td class=\"value\">{} channels</td></tr>\n", a.channels));
+            html.push_str(&format!(
+                "<tr><td class=\"label\">Channels</td><td class=\"value\">{} channels</td></tr>\n",
+                a.channels
+            ));
             html.push_str(&format!("<tr><td class=\"label\">Sampling rate</td><td class=\"value\">{:.1} kHz</td></tr>\n", a.sampling_rate as f64 / 1000.0));
             if let Some(ref title) = a.title {
-                html.push_str(&format!("<tr><td class=\"label\">Title</td><td class=\"value\">{}</td></tr>\n", title));
+                html.push_str(&format!(
+                    "<tr><td class=\"label\">Title</td><td class=\"value\">{}</td></tr>\n",
+                    title
+                ));
             }
             html.push_str("</table>\n</div>\n");
         }

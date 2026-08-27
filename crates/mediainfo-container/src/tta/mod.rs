@@ -20,7 +20,9 @@ impl TtaDemuxer {
         }
 
         if !data.starts_with(&TTA_MAGIC) {
-            return Err(MediaInfoError::InvalidData("Not a valid TrueAudio file".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not a valid TrueAudio file".to_string(),
+            ));
         }
 
         let mut report = MediaReport::new();

@@ -1,6 +1,6 @@
+use crate::types::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::types::*;
 
 /// Video stream metadata track.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -30,12 +30,12 @@ pub struct VideoTrack {
     pub frame_rate_minimum: Option<f64>,
     pub frame_rate_maximum: Option<f64>,
     pub frame_count: Option<u64>,
-    pub standard: Option<String>, // NTSC, PAL, etc.
+    pub standard: Option<String>,    // NTSC, PAL, etc.
     pub color_space: Option<String>, // YUV, RGB, etc.
     pub chroma_subsampling: Option<ChromaSubsampling>,
-    pub bit_depth: u8, // 8, 10, 12, etc.
-    pub scan_type: Option<String>, // Progressive, Interlaced
-    pub scan_order: Option<String>, // TFF, BFF
+    pub bit_depth: u8,                    // 8, 10, 12, etc.
+    pub scan_type: Option<String>,        // Progressive, Interlaced
+    pub scan_order: Option<String>,       // TFF, BFF
     pub compression_mode: Option<String>, // Lossy, Lossless
     pub stream_size: Option<u64>,
     pub encoded_library: Option<String>,

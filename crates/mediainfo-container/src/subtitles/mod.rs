@@ -20,7 +20,11 @@ impl SubtitleDemuxer {
             ContainerFormat::ASS => Self::parse_ass(data, &mut report)?,
             ContainerFormat::WebVTT => Self::parse_vtt(data, &mut report)?,
             ContainerFormat::SUP => Self::parse_sup(data, &mut report)?,
-            _ => return Err(MediaInfoError::InvalidData("Unsupported subtitle container".to_string())),
+            _ => {
+                return Err(MediaInfoError::InvalidData(
+                    "Unsupported subtitle container".to_string(),
+                ))
+            }
         }
 
         Ok(report)
@@ -67,7 +71,11 @@ impl SubtitleDemuxer {
         let is_v4_plus = text.contains("[V4+ Styles]");
         report.general.format_profile = Some(format!(
             "{} ({})",
-            if is_v4_plus { "Advanced SubStation Alpha (ASS v4+)" } else { "SubStation Alpha (SSA v4)" },
+            if is_v4_plus {
+                "Advanced SubStation Alpha (ASS v4+)"
+            } else {
+                "SubStation Alpha (SSA v4)"
+            },
             encoding
         ));
 
@@ -92,7 +100,8 @@ impl SubtitleDemuxer {
             if trimmed.starts_with("Title:") {
                 report.general.title = Some(trimmed["Title:".len()..].trim().to_string());
             } else if trimmed.starts_with("Original Script:") {
-                report.general.artist = Some(trimmed["Original Script:".len()..].trim().to_string());
+                report.general.artist =
+                    Some(trimmed["Original Script:".len()..].trim().to_string());
             } else if trimmed.starts_with("Style:") {
                 style_count += 1;
             } else if trimmed.starts_with("Dialogue:") {
@@ -110,7 +119,11 @@ impl SubtitleDemuxer {
         }
 
         let mut sub = TextTrack::default();
-        sub.format = if is_v4_plus { SubtitleCodec::ASS } else { SubtitleCodec::SSA };
+        sub.format = if is_v4_plus {
+            SubtitleCodec::ASS
+        } else {
+            SubtitleCodec::SSA
+        };
         sub.format_info = Some(format!(
             "{} lines, {} styles, {} embedded fonts",
             dialogue_count, style_count, font_count
@@ -166,10 +179,13 @@ impl SubtitleDemuxer {
 
     fn parse_sup(data: &[u8], report: &mut MediaReport) -> Result<()> {
         if data.len() < 13 || !data.starts_with(&SUP_MAGIC) {
-            return Err(MediaInfoError::InvalidData("Not a valid Blu-ray SUP file".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not a valid Blu-ray SUP file".to_string(),
+            ));
         }
 
-        report.general.format_profile = Some("Blu-ray Presentation Graphic Stream (PGS)".to_string());
+        report.general.format_profile =
+            Some("Blu-ray Presentation Graphic Stream (PGS)".to_string());
 
         let mut segment_count = 0u64;
         let mut max_pts_ms = 0.0f64;
@@ -183,8 +199,18 @@ impl SubtitleDemuxer {
                 continue;
             }
 
-            let pts = u32::from_be_bytes([data[offset + 2], data[offset + 3], data[offset + 4], data[offset + 5]]);
-            let _dts = u32::from_be_bytes([data[offset + 6], data[offset + 7], data[offset + 8], data[offset + 9]]);
+            let pts = u32::from_be_bytes([
+                data[offset + 2],
+                data[offset + 3],
+                data[offset + 4],
+                data[offset + 5],
+            ]);
+            let _dts = u32::from_be_bytes([
+                data[offset + 6],
+                data[offset + 7],
+                data[offset + 8],
+                data[offset + 9],
+            ]);
             let seg_type = data[offset + 10];
             let seg_len = u16::from_be_bytes([data[offset + 11], data[offset + 12]]) as usize;
             offset += 13;
@@ -206,7 +232,10 @@ impl SubtitleDemuxer {
 
         let mut sub = TextTrack::default();
         sub.format = SubtitleCodec::PGS;
-        sub.format_info = Some(format!("HDMV PGS ({}x{}, {} segments)", width, height, segment_count));
+        sub.format_info = Some(format!(
+            "HDMV PGS ({}x{}, {} segments)",
+            width, height, segment_count
+        ));
         sub.element_count = Some(segment_count);
 
         if max_pts_ms > 0.0 {
@@ -246,7 +275,11 @@ impl SubtitleDemuxer {
             let m = parts[1].parse::<f64>().ok()?;
             let s_ms: Vec<&str> = parts[2].split(|c| c == ',' || c == '.').collect();
             let sec = s_ms[0].parse::<f64>().ok()?;
-            let ms = if s_ms.len() > 1 { s_ms[1].parse::<f64>().ok().unwrap_or(0.0) } else { 0.0 };
+            let ms = if s_ms.len() > 1 {
+                s_ms[1].parse::<f64>().ok().unwrap_or(0.0)
+            } else {
+                0.0
+            };
             Some((h * 3600.0 + m * 60.0 + sec) * 1000.0 + ms)
         } else {
             None
@@ -261,7 +294,11 @@ impl SubtitleDemuxer {
             let m = parts[1].parse::<f64>().ok()?;
             let s_cs: Vec<&str> = parts[2].split('.').collect();
             let sec = s_cs[0].parse::<f64>().ok()?;
-            let cs = if s_cs.len() > 1 { s_cs[1].parse::<f64>().ok().unwrap_or(0.0) } else { 0.0 };
+            let cs = if s_cs.len() > 1 {
+                s_cs[1].parse::<f64>().ok().unwrap_or(0.0)
+            } else {
+                0.0
+            };
             Some((h * 3600.0 + m * 60.0 + sec) * 1000.0 + cs * 10.0)
         } else {
             None
@@ -276,13 +313,21 @@ impl SubtitleDemuxer {
             let m = parts[1].parse::<f64>().ok()?;
             let s_ms: Vec<&str> = parts[2].split('.').collect();
             let sec = s_ms[0].parse::<f64>().ok()?;
-            let ms = if s_ms.len() > 1 { s_ms[1].parse::<f64>().ok().unwrap_or(0.0) } else { 0.0 };
+            let ms = if s_ms.len() > 1 {
+                s_ms[1].parse::<f64>().ok().unwrap_or(0.0)
+            } else {
+                0.0
+            };
             Some((h * 3600.0 + m * 60.0 + sec) * 1000.0 + ms)
         } else if parts.len() == 2 {
             let m = parts[0].parse::<f64>().ok()?;
             let s_ms: Vec<&str> = parts[1].split('.').collect();
             let sec = s_ms[0].parse::<f64>().ok()?;
-            let ms = if s_ms.len() > 1 { s_ms[1].parse::<f64>().ok().unwrap_or(0.0) } else { 0.0 };
+            let ms = if s_ms.len() > 1 {
+                s_ms[1].parse::<f64>().ok().unwrap_or(0.0)
+            } else {
+                0.0
+            };
             Some((m * 60.0 + sec) * 1000.0 + ms)
         } else {
             None

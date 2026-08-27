@@ -119,36 +119,12 @@ impl ContainerFormat {
     /// Single canonical list of all media extensions recognized by the engine.
     pub fn all_supported_extensions() -> &'static [&'static str] {
         &[
-            "mp4", "m4v", "m4a", "m4b", "mov", "qt",
-            "mkv", "mka", "mks", "mk3d", "webm",
-            "avi", "divx",
-            "wav", "wave", "bwf", "rf64",
-            "ts", "m2ts", "mts", "m2t",
-            "mpg", "mpeg", "vob", "evob",
-            "flv", "f4v",
-            "ogg", "ogv", "oga", "ogx", "opus", "spx",
-            "mxf",
-            "asf", "wmv", "wma",
-            "flac", "fla",
-            "mp3", "mp2", "mp1", "mpa",
-            "aac", "adts",
-            "ac3", "eac3", "ec3",
-            "dts", "dtshd", "dtsx",
-            "mpc", "mp+",
-            "caf",
-            "dsf",
-            "dff",
-            "ape",
-            "wv", "wvc",
-            "aif", "aiff", "aifc",
-            "tta",
-            "ivf",
-            "y4m",
-            "amr", "awb",
-            "srt",
-            "ass", "ssa",
-            "vtt",
-            "sup",
+            "mp4", "m4v", "m4a", "m4b", "mov", "qt", "mkv", "mka", "mks", "mk3d", "webm", "avi",
+            "divx", "wav", "wave", "bwf", "rf64", "ts", "m2ts", "mts", "m2t", "mpg", "mpeg", "vob",
+            "evob", "flv", "f4v", "ogg", "ogv", "oga", "ogx", "opus", "spx", "mxf", "asf", "wmv",
+            "wma", "flac", "fla", "mp3", "mp2", "mp1", "mpa", "aac", "adts", "ac3", "eac3", "ec3",
+            "dts", "dtshd", "dtsx", "mpc", "mp+", "caf", "dsf", "dff", "ape", "wv", "wvc", "aif",
+            "aiff", "aifc", "tta", "ivf", "y4m", "amr", "awb", "srt", "ass", "ssa", "vtt", "sup",
         ]
     }
 
@@ -164,18 +140,18 @@ impl ContainerFormat {
 /// Known Video elementary stream codecs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum VideoCodec {
-    AVC,       // H.264
-    HEVC,      // H.265
-    AV1,       // AOMedia Video 1
-    VP9,       // Google VP9
-    VP8,       // Google VP8
-    ProRes,    // Apple ProRes
-    MPEG1Video,// MPEG-1 Video
-    MPEG2Video,// MPEG-2 Video
-    MPEG4Visual,// MPEG-4 Part 2
-    VC1,       // SMPTE 421M
-    VVC,       // H.266
-    CineForm,  // GoPro CineForm (SMPTE ST 2073)
+    AVC,         // H.264
+    HEVC,        // H.265
+    AV1,         // AOMedia Video 1
+    VP9,         // Google VP9
+    VP8,         // Google VP8
+    ProRes,      // Apple ProRes
+    MPEG1Video,  // MPEG-1 Video
+    MPEG2Video,  // MPEG-2 Video
+    MPEG4Visual, // MPEG-4 Part 2
+    VC1,         // SMPTE 421M
+    VVC,         // H.266
+    CineForm,    // GoPro CineForm (SMPTE ST 2073)
     Theora,
     DV,
     DNxHD,
@@ -313,16 +289,16 @@ impl AudioCodec {
 /// Known Subtitle/Text codecs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SubtitleCodec {
-    SubRip,       // SRT
-    ASS,          // Advanced SubStation Alpha
-    SSA,          // SubStation Alpha
-    PGS,          // Presentation Graphic Stream (SUP/Bluray)
-    VobSub,       // DVD Subtitles (IDX/SUB)
-    WebVTT,       // VTT
-    TTML,         // Timed Text Markup Language
-    EIA608,       // Closed Captions CEA-608
-    EIA708,       // Closed Captions CEA-708
-    DVBSubtitle,  // DVB Subtitles
+    SubRip,      // SRT
+    ASS,         // Advanced SubStation Alpha
+    SSA,         // SubStation Alpha
+    PGS,         // Presentation Graphic Stream (SUP/Bluray)
+    VobSub,      // DVD Subtitles (IDX/SUB)
+    WebVTT,      // VTT
+    TTML,        // Timed Text Markup Language
+    EIA608,      // Closed Captions CEA-608
+    EIA708,      // Closed Captions CEA-708
+    DVBSubtitle, // DVB Subtitles
     Teletext,
     Other(String),
 }

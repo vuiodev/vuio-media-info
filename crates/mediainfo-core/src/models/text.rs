@@ -1,6 +1,6 @@
+use crate::types::SubtitleCodec;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::types::SubtitleCodec;
 
 /// Subtitle / Text stream metadata track.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

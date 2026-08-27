@@ -12,16 +12,16 @@ members = [
 ]
 default-members = [
     ".",
-    "crates/mediainfo-gui",
 ]
 resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["MediaInfo Rust Contributors"]
+rust-version = "1.97.0"
+authors = ["vuio-media-info Contributors"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/vyrti/mediainfo"
+repository = "https://github.com/vuiodev/vuiomediainfo"
 readme = "README.md"
 
 [workspace.dependencies]
@@ -62,6 +62,7 @@ window-vibrancy = "0.5"
 name = "mediainfo"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 description = "Pure Rust rewrite of MediaInfoLib: exhaustive media metadata inspection and reporting"

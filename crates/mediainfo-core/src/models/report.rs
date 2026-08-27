@@ -1,13 +1,8 @@
-use serde::{Deserialize, Serialize};
 use crate::models::{
-    attachment::Attachment,
-    audio::AudioTrack,
-    bitstream_node::BitstreamNode,
-    general::GeneralTrack,
-    menu::MenuTrack,
-    text::TextTrack,
-    video::VideoTrack,
+    attachment::Attachment, audio::AudioTrack, bitstream_node::BitstreamNode,
+    general::GeneralTrack, menu::MenuTrack, text::TextTrack, video::VideoTrack,
 };
+use serde::{Deserialize, Serialize};
 
 /// Root media inspection report containing all parsed tracks and metadata.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

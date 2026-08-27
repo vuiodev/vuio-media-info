@@ -19,7 +19,9 @@ impl CafDemuxer {
         }
 
         if !data.starts_with(&CAF_MAGIC) {
-            return Err(MediaInfoError::InvalidData("Not a valid CAF file".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not a valid CAF file".to_string(),
+            ));
         }
 
         let mut report = MediaReport::new();
@@ -36,8 +38,14 @@ impl CafDemuxer {
         while offset + 12 <= data.len() {
             let chunk_type = &data[offset..offset + 4];
             let chunk_size_raw = i64::from_be_bytes([
-                data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7],
-                data[offset + 8], data[offset + 9], data[offset + 10], data[offset + 11],
+                data[offset + 4],
+                data[offset + 5],
+                data[offset + 6],
+                data[offset + 7],
+                data[offset + 8],
+                data[offset + 9],
+                data[offset + 10],
+                data[offset + 11],
             ]);
             offset += 12;
 
@@ -54,15 +62,20 @@ impl CafDemuxer {
             match chunk_type {
                 b"desc" if payload.len() >= 32 => {
                     sample_rate = f64::from_be_bytes([
-                        payload[0], payload[1], payload[2], payload[3],
-                        payload[4], payload[5], payload[6], payload[7],
+                        payload[0], payload[1], payload[2], payload[3], payload[4], payload[5],
+                        payload[6], payload[7],
                     ]);
                     let format_id = &payload[8..12];
-                    let format_flags = u32::from_be_bytes([payload[12], payload[13], payload[14], payload[15]]);
-                    let _bytes_per_packet = u32::from_be_bytes([payload[16], payload[17], payload[18], payload[19]]);
-                    let _frames_per_packet = u32::from_be_bytes([payload[20], payload[21], payload[22], payload[23]]);
-                    let channels = u32::from_be_bytes([payload[24], payload[25], payload[26], payload[27]]);
-                    let bits_per_channel = u32::from_be_bytes([payload[28], payload[29], payload[30], payload[31]]);
+                    let format_flags =
+                        u32::from_be_bytes([payload[12], payload[13], payload[14], payload[15]]);
+                    let _bytes_per_packet =
+                        u32::from_be_bytes([payload[16], payload[17], payload[18], payload[19]]);
+                    let _frames_per_packet =
+                        u32::from_be_bytes([payload[20], payload[21], payload[22], payload[23]]);
+                    let channels =
+                        u32::from_be_bytes([payload[24], payload[25], payload[26], payload[27]]);
+                    let bits_per_channel =
+                        u32::from_be_bytes([payload[28], payload[29], payload[30], payload[31]]);
 
                     audio_track.sampling_rate = sample_rate as u32;
                     audio_track.channels = channels;
@@ -91,7 +104,8 @@ impl CafDemuxer {
                         }
                         b"alac" => {
                             audio_track.format = AudioCodec::ALAC;
-                            audio_track.format_info = Some("Apple Lossless Audio Codec".to_string());
+                            audio_track.format_info =
+                                Some("Apple Lossless Audio Codec".to_string());
                             audio_track.compression_mode = Some("Lossless".to_string());
                         }
                         b"aac " => {
@@ -118,16 +132,24 @@ impl CafDemuxer {
                 }
                 b"pakt" if payload.len() >= 16 => {
                     let _num_packets = u64::from_be_bytes([
-                        payload[0], payload[1], payload[2], payload[3],
-                        payload[4], payload[5], payload[6], payload[7],
+                        payload[0], payload[1], payload[2], payload[3], payload[4], payload[5],
+                        payload[6], payload[7],
                     ]);
                     valid_frames = u64::from_be_bytes([
-                        payload[8], payload[9], payload[10], payload[11],
-                        payload[12], payload[13], payload[14], payload[15],
+                        payload[8],
+                        payload[9],
+                        payload[10],
+                        payload[11],
+                        payload[12],
+                        payload[13],
+                        payload[14],
+                        payload[15],
                     ]);
                 }
                 b"info" if payload.len() >= 4 => {
-                    let num_entries = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]) as usize;
+                    let num_entries =
+                        u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]])
+                            as usize;
                     let mut str_offset = 4;
                     for _ in 0..num_entries {
                         if str_offset >= payload.len() {
@@ -135,13 +157,20 @@ impl CafDemuxer {
                         }
                         // Read null-terminated key
                         if let Some(key_end) = payload[str_offset..].iter().position(|&b| b == 0) {
-                            let key = String::from_utf8_lossy(&payload[str_offset..str_offset + key_end]).to_string();
+                            let key =
+                                String::from_utf8_lossy(&payload[str_offset..str_offset + key_end])
+                                    .to_string();
                             str_offset += key_end + 1;
                             if str_offset >= payload.len() {
                                 break;
                             }
-                            if let Some(val_end) = payload[str_offset..].iter().position(|&b| b == 0) {
-                                let val = String::from_utf8_lossy(&payload[str_offset..str_offset + val_end]).to_string();
+                            if let Some(val_end) =
+                                payload[str_offset..].iter().position(|&b| b == 0)
+                            {
+                                let val = String::from_utf8_lossy(
+                                    &payload[str_offset..str_offset + val_end],
+                                )
+                                .to_string();
                                 str_offset += val_end + 1;
                                 match key.to_lowercase().as_str() {
                                     "title" => report.general.title = Some(val),

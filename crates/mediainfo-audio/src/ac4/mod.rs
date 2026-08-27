@@ -28,7 +28,9 @@ impl Ac4Header {
 
         let sync = u16::from_be_bytes([data[0], data[1]]);
         if sync != 0xAC40 && sync != 0xAC41 {
-            return Err(MediaInfoError::InvalidData("Invalid AC-4 syncword".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Invalid AC-4 syncword".to_string(),
+            ));
         }
 
         let _bitstream_version = (data[2] >> 5) & 0x07;

@@ -32,7 +32,11 @@ impl MediaInfo {
         file.read_exact(&mut buffer)?;
 
         let mut report = match ContainerParser::parse(&buffer) {
-            Ok(mut rep) if !rep.videos.is_empty() || !rep.audios.is_empty() || rep.general.duration_ms.is_some() => {
+            Ok(mut rep)
+                if !rep.videos.is_empty()
+                    || !rep.audios.is_empty()
+                    || rep.general.duration_ms.is_some() =>
+            {
                 rep.general.file_size = file_len;
                 if let Some(dur_ms) = rep.general.duration_ms {
                     if dur_ms > 0.0 && file_len > 0 {

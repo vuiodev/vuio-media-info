@@ -58,12 +58,15 @@ impl MpegTsDemuxer {
                     let pointer_field = payload[0] as usize;
                     let table_off = 1 + pointer_field;
                     if table_off + 8 < payload.len() {
-                        let section_len = (((payload[table_off + 1] & 0x0F) as usize) << 8) | (payload[table_off + 2] as usize);
+                        let section_len = (((payload[table_off + 1] & 0x0F) as usize) << 8)
+                            | (payload[table_off + 2] as usize);
                         let mut p_off = table_off + 8;
-                        let section_end = (table_off + 3 + section_len).min(payload.len().saturating_sub(4));
+                        let section_end =
+                            (table_off + 3 + section_len).min(payload.len().saturating_sub(4));
                         while p_off + 4 <= section_end {
                             let prog_num = u16::from_be_bytes([payload[p_off], payload[p_off + 1]]);
-                            let pmt_pid = (((payload[p_off + 2] & 0x1F) as u16) << 8) | (payload[p_off + 3] as u16);
+                            let pmt_pid = (((payload[p_off + 2] & 0x1F) as u16) << 8)
+                                | (payload[p_off + 3] as u16);
                             if prog_num != 0 {
                                 pmt_pids.insert(pmt_pid);
                             }
@@ -75,15 +78,20 @@ impl MpegTsDemuxer {
                     let pointer_field = payload[0] as usize;
                     let table_off = 1 + pointer_field;
                     if table_off + 12 < payload.len() {
-                        let section_len = (((payload[table_off + 1] & 0x0F) as usize) << 8) | (payload[table_off + 2] as usize);
-                        let prog_info_len = (((payload[table_off + 10] & 0x0F) as usize) << 8) | (payload[table_off + 11] as usize);
+                        let section_len = (((payload[table_off + 1] & 0x0F) as usize) << 8)
+                            | (payload[table_off + 2] as usize);
+                        let prog_info_len = (((payload[table_off + 10] & 0x0F) as usize) << 8)
+                            | (payload[table_off + 11] as usize);
                         let mut es_off = table_off + 12 + prog_info_len;
-                        let section_end = (table_off + 3 + section_len).min(payload.len().saturating_sub(4));
+                        let section_end =
+                            (table_off + 3 + section_len).min(payload.len().saturating_sub(4));
 
                         while es_off + 5 <= section_end {
                             let stream_type = payload[es_off];
-                            let elem_pid = (((payload[es_off + 1] & 0x1F) as u16) << 8) | (payload[es_off + 2] as u16);
-                            let es_info_len = (((payload[es_off + 3] & 0x0F) as usize) << 8) | (payload[es_off + 4] as usize);
+                            let elem_pid = (((payload[es_off + 1] & 0x1F) as u16) << 8)
+                                | (payload[es_off + 2] as u16);
+                            let es_info_len = (((payload[es_off + 3] & 0x0F) as usize) << 8)
+                                | (payload[es_off + 4] as usize);
 
                             streams.insert(elem_pid, stream_type);
                             es_off += 5 + es_info_len;

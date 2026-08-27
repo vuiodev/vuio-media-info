@@ -1,7 +1,4 @@
-use mediainfo_core::{
-    error::Result,
-    models::MediaReport,
-};
+use mediainfo_core::{error::Result, models::MediaReport};
 
 /// Formats `MediaReport` into standard MediaInfo XML schema.
 pub struct XmlFormatter;
@@ -11,12 +8,20 @@ impl XmlFormatter {
         let mut out = String::new();
         out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         out.push_str("<MediaInfo xmlns=\"https://mediaarea.net/mediainfo\" version=\"2.0\">\n");
-        out.push_str(&format!("  <media ref=\"{}\">\n", Self::escape_xml(&report.general.file_name.clone().unwrap_or_default())));
+        out.push_str(&format!(
+            "  <media ref=\"{}\">\n",
+            Self::escape_xml(&report.general.file_name.clone().unwrap_or_default())
+        ));
 
         // General
         out.push_str("    <track type=\"General\">\n");
         Self::write_elem(&mut out, "Format", report.general.format.display_name(), 6);
-        Self::write_elem(&mut out, "FileSize", &report.general.file_size.to_string(), 6);
+        Self::write_elem(
+            &mut out,
+            "FileSize",
+            &report.general.file_size.to_string(),
+            6,
+        );
         if let Some(dur) = report.general.duration_ms {
             Self::write_elem(&mut out, "Duration", &(dur / 1000.0).to_string(), 6);
         }
@@ -56,7 +61,13 @@ impl XmlFormatter {
 
     fn write_elem(out: &mut String, tag: &str, val: &str, indent: usize) {
         let spaces = " ".repeat(indent);
-        out.push_str(&format!("{}<{}>{}</{}>\n", spaces, tag, Self::escape_xml(val), tag));
+        out.push_str(&format!(
+            "{}<{}>{}</{}>\n",
+            spaces,
+            tag,
+            Self::escape_xml(val),
+            tag
+        ));
     }
 
     fn escape_xml(s: &str) -> String {

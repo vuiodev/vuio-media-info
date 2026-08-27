@@ -50,10 +50,7 @@ impl Id3v1Tag {
     }
 
     fn decode_str(bytes: &[u8]) -> Option<String> {
-        let trimmed = bytes
-            .split(|&b| b == 0)
-            .next()
-            .unwrap_or(bytes);
+        let trimmed = bytes.split(|&b| b == 0).next().unwrap_or(bytes);
         let s = String::from_utf8_lossy(trimmed).trim().to_string();
         if s.is_empty() {
             None

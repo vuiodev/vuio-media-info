@@ -11,8 +11,8 @@ pub struct WavpackDemuxer;
 pub const WAVPACK_MAGIC: [u8; 4] = [b'w', b'v', b'p', b'k'];
 
 const SAMPLE_RATES: [u32; 15] = [
-    6000, 8000, 9600, 11025, 12000, 16000, 22050, 24000,
-    32000, 44100, 48000, 64000, 88200, 96000, 192000,
+    6000, 8000, 9600, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
+    192000,
 ];
 
 impl WavpackDemuxer {
@@ -25,7 +25,9 @@ impl WavpackDemuxer {
         }
 
         if !data.starts_with(&WAVPACK_MAGIC) {
-            return Err(MediaInfoError::InvalidData("Not a valid WavPack file".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not a valid WavPack file".to_string(),
+            ));
         }
 
         let mut report = MediaReport::new();
@@ -33,7 +35,8 @@ impl WavpackDemuxer {
         report.general.file_size = data.len() as u64;
 
         let version = u16::from_le_bytes([data[8], data[9]]);
-        report.general.format_version = Some(format!("{}.{}", (version >> 8) & 0xFF, version & 0xFF));
+        report.general.format_version =
+            Some(format!("{}.{}", (version >> 8) & 0xFF, version & 0xFF));
 
         let total_samples = u32::from_le_bytes([data[12], data[13], data[14], data[15]]);
         let flags = u32::from_le_bytes([data[24], data[25], data[26], data[27]]);
@@ -112,7 +115,7 @@ mod tests {
         data[0..4].copy_from_slice(&WAVPACK_MAGIC);
         data[8..10].copy_from_slice(&0x0410u16.to_le_bytes()); // v4.16
         data[12..16].copy_from_slice(&441000u32.to_le_bytes()); // 10 seconds at 44.1kHz
-        // flags: bytes_per_sample = 2 (16-bit, value 1), stereo (0), sr_idx = 9 (44100, 9 << 23)
+                                                                // flags: bytes_per_sample = 2 (16-bit, value 1), stereo (0), sr_idx = 9 (44100, 9 << 23)
         let flags: u32 = 1 | (9 << 23);
         data[24..28].copy_from_slice(&flags.to_le_bytes());
 

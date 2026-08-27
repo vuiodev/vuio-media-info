@@ -215,19 +215,17 @@ impl IsobmffDemuxer {
                             let w_offset = if version == 1 { 88 } else { 76 };
                             let h_offset = if version == 1 { 92 } else { 80 };
                             if payload.len() >= h_offset + 4 {
-                                tkhd_width = u16::from_be_bytes([payload[w_offset], payload[w_offset + 1]]) as u32;
-                                tkhd_height = u16::from_be_bytes([payload[h_offset], payload[h_offset + 1]]) as u32;
+                                tkhd_width =
+                                    u16::from_be_bytes([payload[w_offset], payload[w_offset + 1]])
+                                        as u32;
+                                tkhd_height =
+                                    u16::from_be_bytes([payload[h_offset], payload[h_offset + 1]])
+                                        as u32;
                             }
                         }
                     }
                     b"mdia" => {
-                        Self::parse_mdia(
-                            payload,
-                            track_id,
-                            tkhd_width,
-                            tkhd_height,
-                            report,
-                        );
+                        Self::parse_mdia(payload, track_id, tkhd_width, tkhd_height, report);
                     }
                     _ => {}
                 }
@@ -334,7 +332,8 @@ impl IsobmffDemuxer {
                 if &box_type == b"stsd" && payload.len() >= 8 {
                     let entry_data = &payload[8..];
                     if entry_data.len() >= 8 {
-                        let (codec_box, _, _) = Self::read_box_header(entry_data, 0).unwrap_or(([0; 4], 0, 0));
+                        let (codec_box, _, _) =
+                            Self::read_box_header(entry_data, 0).unwrap_or(([0; 4], 0, 0));
                         let codec_str = String::from_utf8_lossy(&codec_box).to_string();
 
                         if handler == b"vide" {
@@ -349,25 +348,32 @@ impl IsobmffDemuxer {
                                 v.format_info = Some("Advanced Video Coding".to_string());
                                 if let Some(avcc) = Self::find_child_box(entry_data, b"avcC") {
                                     if avcc.len() >= 7 {
-                                        let sps_len = u16::from_be_bytes([avcc[6], avcc[7]]) as usize;
+                                        let sps_len =
+                                            u16::from_be_bytes([avcc[6], avcc[7]]) as usize;
                                         if avcc.len() >= 8 + sps_len {
                                             let sps_bytes = &avcc[8..8 + sps_len];
                                             if let Ok(sps) = AvcSps::parse(sps_bytes) {
                                                 v.width = sps.width;
                                                 v.height = sps.height;
-                                                v.format_profile = Some(sps.profile_name.to_string());
+                                                v.format_profile =
+                                                    Some(sps.profile_name.to_string());
                                                 v.format_level = Some(sps.level_name);
                                                 v.bit_depth = sps.bit_depth;
                                                 v.chroma_subsampling = Some(sps.chroma_subsampling);
                                                 v.color_range = sps.color_range;
                                                 v.color_primaries = sps.color_primaries;
-                                                v.transfer_characteristics = sps.transfer_characteristics;
+                                                v.transfer_characteristics =
+                                                    sps.transfer_characteristics;
                                                 v.matrix_coefficients = sps.matrix_coefficients;
                                             }
                                         }
                                     }
                                 }
-                            } else if codec_box == *b"hvc1" || codec_box == *b"hev1" || codec_box == *b"dvh1" || codec_box == *b"dvhe" {
+                            } else if codec_box == *b"hvc1"
+                                || codec_box == *b"hev1"
+                                || codec_box == *b"dvh1"
+                                || codec_box == *b"dvhe"
+                            {
                                 v.format = VideoCodec::HEVC;
                                 v.format_info = Some("High Efficiency Video Coding".to_string());
                                 if let Some(hvcc) = Self::find_child_box(entry_data, b"hvcC") {
@@ -375,28 +381,47 @@ impl IsobmffDemuxer {
                                         let num_arrays = hvcc[22];
                                         let mut arr_off = 23;
                                         for _ in 0..num_arrays {
-                                            if arr_off + 3 > hvcc.len() { break; }
+                                            if arr_off + 3 > hvcc.len() {
+                                                break;
+                                            }
                                             let nal_type = hvcc[arr_off] & 0x3F;
-                                            let num_nalus = u16::from_be_bytes([hvcc[arr_off + 1], hvcc[arr_off + 2]]) as usize;
+                                            let num_nalus = u16::from_be_bytes([
+                                                hvcc[arr_off + 1],
+                                                hvcc[arr_off + 2],
+                                            ])
+                                                as usize;
                                             arr_off += 3;
                                             for _ in 0..num_nalus {
-                                                if arr_off + 2 > hvcc.len() { break; }
-                                                let nalu_len = u16::from_be_bytes([hvcc[arr_off], hvcc[arr_off + 1]]) as usize;
+                                                if arr_off + 2 > hvcc.len() {
+                                                    break;
+                                                }
+                                                let nalu_len = u16::from_be_bytes([
+                                                    hvcc[arr_off],
+                                                    hvcc[arr_off + 1],
+                                                ])
+                                                    as usize;
                                                 arr_off += 2;
-                                                if nal_type == 33 && arr_off + nalu_len <= hvcc.len() {
-                                                    let sps_bytes = &hvcc[arr_off..arr_off + nalu_len];
+                                                if nal_type == 33
+                                                    && arr_off + nalu_len <= hvcc.len()
+                                                {
+                                                    let sps_bytes =
+                                                        &hvcc[arr_off..arr_off + nalu_len];
                                                     if let Ok(sps) = HevcSps::parse(sps_bytes) {
                                                         v.width = sps.width;
                                                         v.height = sps.height;
-                                                        v.format_profile = Some(sps.profile_name.to_string());
+                                                        v.format_profile =
+                                                            Some(sps.profile_name.to_string());
                                                         v.format_level = Some(sps.level_name);
                                                         v.format_tier = Some(sps.tier.to_string());
                                                         v.bit_depth = sps.bit_depth;
-                                                        v.chroma_subsampling = Some(sps.chroma_subsampling);
+                                                        v.chroma_subsampling =
+                                                            Some(sps.chroma_subsampling);
                                                         v.color_range = sps.color_range;
                                                         v.color_primaries = sps.color_primaries;
-                                                        v.transfer_characteristics = sps.transfer_characteristics;
-                                                        v.matrix_coefficients = sps.matrix_coefficients;
+                                                        v.transfer_characteristics =
+                                                            sps.transfer_characteristics;
+                                                        v.matrix_coefficients =
+                                                            sps.matrix_coefficients;
                                                         v.hdr_format = sps.hdr_format;
                                                     }
                                                 }
@@ -406,10 +431,13 @@ impl IsobmffDemuxer {
                                     }
                                 }
 
-                                if let Some(dvcc) = Self::find_child_box(entry_data, b"dvcC").or_else(|| Self::find_child_box(entry_data, b"dvvC")) {
+                                if let Some(dvcc) = Self::find_child_box(entry_data, b"dvcC")
+                                    .or_else(|| Self::find_child_box(entry_data, b"dvvC"))
+                                {
                                     if dvcc.len() >= 4 {
                                         let profile = (dvcc[2] >> 1) & 0x7F;
-                                        let level = ((dvcc[2] & 0x01) << 5) | ((dvcc[3] >> 3) & 0x1F);
+                                        let level =
+                                            ((dvcc[2] & 0x01) << 5) | ((dvcc[3] >> 3) & 0x1F);
                                         let rpu_present = (dvcc[3] & 0x04) != 0;
                                         let el_present = (dvcc[3] & 0x02) != 0;
                                         let bl_present = (dvcc[3] & 0x01) != 0;
@@ -444,7 +472,9 @@ impl IsobmffDemuxer {
                                 a.format = AudioCodec::AAC;
                                 a.format_info = Some("Advanced Audio Coding".to_string());
                                 if let Some(esds) = Self::find_child_box(entry_data, b"esds") {
-                                    if let Ok(aac) = AacInfo::parse_audio_specific_config(&esds[4..]) {
+                                    if let Ok(aac) =
+                                        AacInfo::parse_audio_specific_config(&esds[4..])
+                                    {
                                         a.sampling_rate = aac.sampling_rate;
                                         a.channels = aac.channels;
                                         a.channel_layout = Some(aac.channel_layout);
@@ -459,10 +489,15 @@ impl IsobmffDemuxer {
                                 if let Some(dac3) = Self::find_child_box(entry_data, b"dac3") {
                                     if dac3.len() >= 3 {
                                         let fscod = (dac3[0] >> 6) & 0x03;
-                                        let bit_rate_code = ((dac3[1] & 0x03) << 3) | ((dac3[2] >> 5) & 0x07);
-                                        let bitrate_table = [32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 448, 512, 576, 640];
+                                        let bit_rate_code =
+                                            ((dac3[1] & 0x03) << 3) | ((dac3[2] >> 5) & 0x07);
+                                        let bitrate_table = [
+                                            32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224,
+                                            256, 320, 384, 448, 512, 576, 640,
+                                        ];
                                         if (bit_rate_code as usize) < bitrate_table.len() {
-                                            a.bit_rate = Some(bitrate_table[bit_rate_code as usize] * 1000);
+                                            a.bit_rate =
+                                                Some(bitrate_table[bit_rate_code as usize] * 1000);
                                         }
                                         let sample_rates = [48000, 44100, 32000, 0];
                                         if (fscod as usize) < 3 {
@@ -477,7 +512,8 @@ impl IsobmffDemuxer {
                                 a.channel_layout = Some(AudioChannelLayout::Surround5_1);
                                 if let Some(dec3) = Self::find_child_box(entry_data, b"dec3") {
                                     if dec3.len() >= 2 {
-                                        let data_rate = (((dec3[0] as u64) & 0x1F) << 8) | (dec3[1] as u64);
+                                        let data_rate =
+                                            (((dec3[0] as u64) & 0x1F) << 8) | (dec3[1] as u64);
                                         if data_rate > 0 {
                                             a.bit_rate = Some(data_rate * 1000);
                                         }

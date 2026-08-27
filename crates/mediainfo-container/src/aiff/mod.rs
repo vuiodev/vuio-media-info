@@ -20,12 +20,16 @@ impl AiffDemuxer {
         }
 
         if !data.starts_with(&FORM_MAGIC) {
-            return Err(MediaInfoError::InvalidData("Not a valid AIFF file".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not a valid AIFF file".to_string(),
+            ));
         }
 
         let form_type = &data[8..12];
         if form_type != b"AIFF" && form_type != b"AIFC" {
-            return Err(MediaInfoError::InvalidData("Not an AIFF or AIFC container".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not an AIFF or AIFC container".to_string(),
+            ));
         }
 
         let is_aifc = form_type == b"AIFC";
@@ -50,7 +54,10 @@ impl AiffDemuxer {
         while offset + 8 <= data.len() {
             let chunk_id = &data[offset..offset + 4];
             let chunk_size = u32::from_be_bytes([
-                data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7],
+                data[offset + 4],
+                data[offset + 5],
+                data[offset + 6],
+                data[offset + 7],
             ]) as usize;
             offset += 8;
 
@@ -65,7 +72,8 @@ impl AiffDemuxer {
             match chunk_id {
                 b"COMM" if payload.len() >= 18 => {
                     let channels = i16::from_be_bytes([payload[0], payload[1]]) as u32;
-                    sample_frames = u32::from_be_bytes([payload[2], payload[3], payload[4], payload[5]]);
+                    sample_frames =
+                        u32::from_be_bytes([payload[2], payload[3], payload[4], payload[5]]);
                     let bit_depth = i16::from_be_bytes([payload[6], payload[7]]) as u8;
                     sample_rate_val = Self::decode_ieee_extended(&payload[8..18]);
 
@@ -83,13 +91,16 @@ impl AiffDemuxer {
                         let comp_type = &payload[18..22];
                         match comp_type {
                             b"sowt" => {
-                                audio_track.format_info = Some("Little-Endian Linear PCM".to_string());
+                                audio_track.format_info =
+                                    Some("Little-Endian Linear PCM".to_string());
                             }
                             b"fl32" | b"FL32" => {
-                                audio_track.format_info = Some("32-bit Floating Point PCM".to_string());
+                                audio_track.format_info =
+                                    Some("32-bit Floating Point PCM".to_string());
                             }
                             b"fl64" | b"FL64" => {
-                                audio_track.format_info = Some("64-bit Floating Point PCM".to_string());
+                                audio_track.format_info =
+                                    Some("64-bit Floating Point PCM".to_string());
                             }
                             b"alaw" | b"ALAW" => {
                                 audio_track.format_info = Some("A-law".to_string());
@@ -121,13 +132,29 @@ impl AiffDemuxer {
                     }
                 }
                 b"NAME" => {
-                    report.general.title = Some(String::from_utf8_lossy(payload).trim_end_matches('\0').trim().to_string());
+                    report.general.title = Some(
+                        String::from_utf8_lossy(payload)
+                            .trim_end_matches('\0')
+                            .trim()
+                            .to_string(),
+                    );
                 }
                 b"AUTH" => {
-                    report.general.artist = Some(String::from_utf8_lossy(payload).trim_end_matches('\0').trim().to_string());
+                    report.general.artist = Some(
+                        String::from_utf8_lossy(payload)
+                            .trim_end_matches('\0')
+                            .trim()
+                            .to_string(),
+                    );
                 }
                 b"(c) " => {
-                    report.general.extra.insert("Copyright".to_string(), String::from_utf8_lossy(payload).trim_end_matches('\0').trim().to_string());
+                    report.general.extra.insert(
+                        "Copyright".to_string(),
+                        String::from_utf8_lossy(payload)
+                            .trim_end_matches('\0')
+                            .trim()
+                            .to_string(),
+                    );
                 }
                 _ => {}
             }
@@ -186,7 +213,7 @@ mod tests {
         data.extend_from_slice(&2i16.to_be_bytes()); // 2 channels
         data.extend_from_slice(&44100u32.to_be_bytes()); // 44100 sample frames (1 sec)
         data.extend_from_slice(&16i16.to_be_bytes()); // 16-bit
-        // 80-bit float for 44100.0: expon = 16383 + 15 = 16398 (0x400E), mantissa = 44100 << 48 = 0xAC440000_00000000
+                                                      // 80-bit float for 44100.0: expon = 16383 + 15 = 16398 (0x400E), mantissa = 44100 << 48 = 0xAC440000_00000000
         data.extend_from_slice(&[0x40, 0x0E, 0xAC, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
 
         let report = AiffDemuxer::parse_buffer(&data).unwrap();

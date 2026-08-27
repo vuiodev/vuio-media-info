@@ -31,7 +31,9 @@ impl Vp9Header {
         // Frame marker (must be 0b10)
         let frame_marker = r.read_bits(2)?;
         if frame_marker != 2 {
-            return Err(MediaInfoError::InvalidData("Invalid VP9 frame marker".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Invalid VP9 frame marker".to_string(),
+            ));
         }
 
         let profile_low = r.read_bit()?;

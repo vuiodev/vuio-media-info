@@ -13,7 +13,7 @@ pub struct MpegHHeader {
     pub object_count: u8,
 }
 
-pub const MPEGH_SYNC_MH3D: [u8; 4] = [b'M', b'H', b'3', b'D'];
+pub const MPEGH_SYNC_MH3D: [u8; 4] = *b"MH3D";
 pub const MPEGH_PACKET_SYNC: [u8; 3] = [0xC0, 0x01, 0xA5];
 
 impl MpegHHeader {
@@ -27,7 +27,9 @@ impl MpegHHeader {
 
         let is_valid = data.starts_with(&MPEGH_SYNC_MH3D) || data.starts_with(&MPEGH_PACKET_SYNC);
         if !is_valid {
-            return Err(MediaInfoError::InvalidData("Invalid MPEG-H 3D syncword".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Invalid MPEG-H 3D syncword".to_string(),
+            ));
         }
 
         let sample_rate = 48000;

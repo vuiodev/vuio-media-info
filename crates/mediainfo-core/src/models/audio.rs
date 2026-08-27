@@ -1,6 +1,6 @@
+use crate::types::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::types::*;
 
 /// Audio stream metadata track.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -26,7 +26,7 @@ pub struct AudioTrack {
     pub sampling_count: Option<u64>,
     pub frame_rate: Option<f64>,
     pub frame_count: Option<u64>,
-    pub bit_depth: Option<u8>, // e.g. 16, 24, 32
+    pub bit_depth: Option<u8>,            // e.g. 16, 24, 32
     pub compression_mode: Option<String>, // Lossy, Lossless
     pub stream_size: Option<u64>,
     pub delay_ms: Option<f64>,

@@ -46,7 +46,11 @@ impl TrueHdHeader {
 
         let offset = match sync_offset {
             Some(o) => o,
-            None => return Err(MediaInfoError::InvalidData("TrueHD/MLP Major Sync not found".to_string())),
+            None => {
+                return Err(MediaInfoError::InvalidData(
+                    "TrueHD/MLP Major Sync not found".to_string(),
+                ))
+            }
         };
 
         if offset + 12 > data.len() {
@@ -90,7 +94,10 @@ impl TrueHdHeader {
         };
 
         // Scan subsequent frame data for Dolby Atmos Object Audio Metadata (OAMD sync or substream)
-        let has_atmos = is_truehd && data.windows(4).any(|w| w == [0x72, 0xF8, 0x01, 0x00] || w == [0x00, 0x01, 0xF8, 0x72]);
+        let has_atmos = is_truehd
+            && data
+                .windows(4)
+                .any(|w| w == [0x72, 0xF8, 0x01, 0x00] || w == [0x00, 0x01, 0xF8, 0x72]);
 
         let format_profile = if has_atmos {
             "Dolby TrueHD with Dolby Atmos".to_string()
@@ -121,7 +128,7 @@ mod tests {
         let mut data = vec![0u8; 16];
         data[0..4].copy_from_slice(&TRUEHD_SYNC);
         // rate_bits = 0 (48kHz), substreams = 1, chan_modifier = 6 (5.1)
-        data[4] = (0 << 4) | 1;
+        data[4] = 1;
         data[5] = 6 << 3;
 
         let thd = TrueHdHeader::parse(&data).unwrap();

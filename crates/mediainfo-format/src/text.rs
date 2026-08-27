@@ -23,7 +23,11 @@ impl TextFormatter {
             Self::write_line(&mut out, "Codec ID", cid);
         }
         if report.general.file_size > 0 {
-            Self::write_line(&mut out, "File size", &Self::format_file_size(report.general.file_size));
+            Self::write_line(
+                &mut out,
+                "File size",
+                &Self::format_file_size(report.general.file_size),
+            );
         }
         if let Some(dur_ms) = report.general.duration_ms {
             Self::write_line(&mut out, "Duration", &Self::format_duration(dur_ms));
@@ -91,8 +95,16 @@ impl TextFormatter {
                 Self::write_line(&mut out, "Bit rate", &Self::format_bitrate(bitrate));
             }
             if v.width > 0 && v.height > 0 {
-                Self::write_line(&mut out, "Width", &format!("{} pixels", Self::format_number(v.width as u64)));
-                Self::write_line(&mut out, "Height", &format!("{} pixels", Self::format_number(v.height as u64)));
+                Self::write_line(
+                    &mut out,
+                    "Width",
+                    &format!("{} pixels", Self::format_number(v.width as u64)),
+                );
+                Self::write_line(
+                    &mut out,
+                    "Height",
+                    &format!("{} pixels", Self::format_number(v.height as u64)),
+                );
                 let dar = (v.width as f64) / (v.height as f64);
                 if (dar - 16.0 / 9.0).abs() < 0.05 {
                     Self::write_line(&mut out, "Display aspect ratio", "16:9");
@@ -133,7 +145,11 @@ impl TextFormatter {
             if let Some(ref lang) = v.language {
                 Self::write_line(&mut out, "Language", lang);
             }
-            Self::write_line(&mut out, "Default", if v.default_flag { "Yes" } else { "No" });
+            Self::write_line(
+                &mut out,
+                "Default",
+                if v.default_flag { "Yes" } else { "No" },
+            );
             Self::write_line(&mut out, "Forced", if v.forced_flag { "Yes" } else { "No" });
             out.push('\n');
         }
@@ -172,7 +188,11 @@ impl TextFormatter {
             if let Some(ref layout) = a.channel_layout {
                 Self::write_line(&mut out, "Channel layout", layout.display_name());
             }
-            Self::write_line(&mut out, "Sampling rate", &format!("{:.1} kHz", a.sampling_rate as f64 / 1000.0));
+            Self::write_line(
+                &mut out,
+                "Sampling rate",
+                &format!("{:.1} kHz", a.sampling_rate as f64 / 1000.0),
+            );
             if let Some(depth) = a.bit_depth {
                 Self::write_line(&mut out, "Bit depth", &format!("{} bits", depth));
             }
@@ -180,7 +200,11 @@ impl TextFormatter {
                 Self::write_line(&mut out, "Compression mode", comp);
             }
             if let Some(dialnorm) = a.dialnorm_db {
-                Self::write_line(&mut out, "Dialog Normalization", &format!("{} dB", dialnorm));
+                Self::write_line(
+                    &mut out,
+                    "Dialog Normalization",
+                    &format!("{} dB", dialnorm),
+                );
             }
             if let Some(ref title) = a.title {
                 Self::write_line(&mut out, "Title", title);
@@ -188,7 +212,11 @@ impl TextFormatter {
             if let Some(ref lang) = a.language {
                 Self::write_line(&mut out, "Language", lang);
             }
-            Self::write_line(&mut out, "Default", if a.default_flag { "Yes" } else { "No" });
+            Self::write_line(
+                &mut out,
+                "Default",
+                if a.default_flag { "Yes" } else { "No" },
+            );
             Self::write_line(&mut out, "Forced", if a.forced_flag { "Yes" } else { "No" });
             out.push('\n');
         }
@@ -214,13 +242,17 @@ impl TextFormatter {
             if let Some(ref lang) = s.language {
                 Self::write_line(&mut out, "Language", lang);
             }
-            Self::write_line(&mut out, "Default", if s.default_flag { "Yes" } else { "No" });
+            Self::write_line(
+                &mut out,
+                "Default",
+                if s.default_flag { "Yes" } else { "No" },
+            );
             Self::write_line(&mut out, "Forced", if s.forced_flag { "Yes" } else { "No" });
             out.push('\n');
         }
 
         // 5. Chapters / Menu
-        for (_i, m) in report.menus.iter().enumerate() {
+        for m in &report.menus {
             out.push_str("Menu\n");
             for chap in &m.chapters {
                 let ms = chap.timestamp_ms;
@@ -286,7 +318,7 @@ impl TextFormatter {
         let mut result = String::new();
         let chars: Vec<char> = s.chars().collect();
         for (i, &c) in chars.iter().enumerate() {
-            if i > 0 && (chars.len() - i) % 3 == 0 {
+            if i > 0 && (chars.len() - i).is_multiple_of(3) {
                 result.push(' ');
             }
             result.push(c);

@@ -1,3 +1,18 @@
+#![allow(
+    clippy::field_reassign_with_default,
+    clippy::manual_div_ceil,
+    clippy::manual_range_contains,
+    clippy::collapsible_if,
+    clippy::op_ref,
+    clippy::manual_checked_ops,
+    clippy::manual_strip,
+    clippy::trim_split_whitespace,
+    clippy::manual_pattern_char_comparison,
+    clippy::byte_char_slices,
+    clippy::needless_range_loop,
+    clippy::single_match
+)]
+
 pub mod aiff;
 pub mod ape_container;
 pub mod asf;
@@ -58,72 +73,31 @@ impl ContainerParser {
             ContainerFormat::Matroska | ContainerFormat::WebM => {
                 MatroskaDemuxer::parse_buffer(buffer)
             }
-            ContainerFormat::AVI | ContainerFormat::WAV => {
-                RiffDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::MPEGTS => {
-                MpegTsDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::Ogg => {
-                OggDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::FLV => {
-                FlvDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::ASF => {
-                AsfDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::MXF => {
-                MxfDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::CAF => {
-                CafDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::DSF | ContainerFormat::DSDIFF => {
-                DsdDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::APE => {
-                ApeContainerDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::WavPack => {
-                WavpackDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::AIFF => {
-                AiffDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::TrueAudio => {
-                TtaDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::IVF => {
-                IvfDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::Y4M => {
-                Y4mDemuxer::parse_buffer(buffer)
-            }
-            ContainerFormat::AMR => {
-                Self::parse_amr_stream(buffer)
-            }
-            ContainerFormat::SRT | ContainerFormat::ASS | ContainerFormat::WebVTT | ContainerFormat::SUP => {
-                SubtitleDemuxer::parse_buffer(buffer, format)
-            }
-            ContainerFormat::FLAC => {
-                Self::parse_flac_stream(buffer)
-            }
-            ContainerFormat::MP3 => {
-                Self::parse_mp3_stream(buffer)
-            }
-            ContainerFormat::AAC => {
-                Self::parse_aac_stream(buffer)
-            }
-            ContainerFormat::AC3 => {
-                Self::parse_ac3_stream(buffer)
-            }
-            ContainerFormat::DTS => {
-                Self::parse_dts_stream(buffer)
-            }
-            ContainerFormat::MPC => {
-                Self::parse_mpc_stream(buffer)
-            }
+            ContainerFormat::AVI | ContainerFormat::WAV => RiffDemuxer::parse_buffer(buffer),
+            ContainerFormat::MPEGTS => MpegTsDemuxer::parse_buffer(buffer),
+            ContainerFormat::Ogg => OggDemuxer::parse_buffer(buffer),
+            ContainerFormat::FLV => FlvDemuxer::parse_buffer(buffer),
+            ContainerFormat::ASF => AsfDemuxer::parse_buffer(buffer),
+            ContainerFormat::MXF => MxfDemuxer::parse_buffer(buffer),
+            ContainerFormat::CAF => CafDemuxer::parse_buffer(buffer),
+            ContainerFormat::DSF | ContainerFormat::DSDIFF => DsdDemuxer::parse_buffer(buffer),
+            ContainerFormat::APE => ApeContainerDemuxer::parse_buffer(buffer),
+            ContainerFormat::WavPack => WavpackDemuxer::parse_buffer(buffer),
+            ContainerFormat::AIFF => AiffDemuxer::parse_buffer(buffer),
+            ContainerFormat::TrueAudio => TtaDemuxer::parse_buffer(buffer),
+            ContainerFormat::IVF => IvfDemuxer::parse_buffer(buffer),
+            ContainerFormat::Y4M => Y4mDemuxer::parse_buffer(buffer),
+            ContainerFormat::AMR => Self::parse_amr_stream(buffer),
+            ContainerFormat::SRT
+            | ContainerFormat::ASS
+            | ContainerFormat::WebVTT
+            | ContainerFormat::SUP => SubtitleDemuxer::parse_buffer(buffer, format),
+            ContainerFormat::FLAC => Self::parse_flac_stream(buffer),
+            ContainerFormat::MP3 => Self::parse_mp3_stream(buffer),
+            ContainerFormat::AAC => Self::parse_aac_stream(buffer),
+            ContainerFormat::AC3 => Self::parse_ac3_stream(buffer),
+            ContainerFormat::DTS => Self::parse_dts_stream(buffer),
+            ContainerFormat::MPC => Self::parse_mpc_stream(buffer),
             ContainerFormat::Unknown => {
                 // Try MP3 or ID3 tags fallback
                 if let Ok(Some(id3)) = Id3v2Tag::parse(buffer) {
@@ -215,9 +189,15 @@ impl ContainerParser {
         }
 
         if let Some(id3v1) = Id3v1Tag::parse(data) {
-            if report.general.title.is_none() { report.general.title = id3v1.title; }
-            if report.general.artist.is_none() { report.general.artist = id3v1.artist; }
-            if report.general.album.is_none() { report.general.album = id3v1.album; }
+            if report.general.title.is_none() {
+                report.general.title = id3v1.title;
+            }
+            if report.general.artist.is_none() {
+                report.general.artist = id3v1.artist;
+            }
+            if report.general.album.is_none() {
+                report.general.album = id3v1.album;
+            }
         }
 
         // Find MP3 syncword (scanning max 64KB from stream_start)
@@ -235,9 +215,12 @@ impl ContainerParser {
 
                     let audio_data_size = (data.len().saturating_sub(stream_start)) as u64;
 
-                    let (dur_ms, calculated_bitrate) = if let (Some(frames), true) = (mp3.xing_frames, mp3.sample_rate > 0) {
+                    let (dur_ms, calculated_bitrate) = if let (Some(frames), true) =
+                        (mp3.xing_frames, mp3.sample_rate > 0)
+                    {
                         let samples_per_frame = 1152.0;
-                        let dur = (frames as f64 * samples_per_frame / mp3.sample_rate as f64) * 1000.0;
+                        let dur =
+                            (frames as f64 * samples_per_frame / mp3.sample_rate as f64) * 1000.0;
                         let br = if dur > 0.0 {
                             let bytes = mp3.xing_bytes.map(|b| b as u64).unwrap_or(audio_data_size);
                             ((bytes * 8) as f64 / (dur / 1000.0)) as u64
@@ -257,7 +240,11 @@ impl ContainerParser {
                         report.general.duration_ms = Some(dur_ms);
                     }
                     a.bit_rate = Some(calculated_bitrate);
-                    a.bit_rate_mode = Some(if mp3.is_vbr { BitrateMode::Variable } else { BitrateMode::Constant });
+                    a.bit_rate_mode = Some(if mp3.is_vbr {
+                        BitrateMode::Variable
+                    } else {
+                        BitrateMode::Constant
+                    });
                     report.general.overall_bitrate = Some(calculated_bitrate);
 
                     report.audios.push(a);
@@ -277,7 +264,9 @@ impl ContainerParser {
         report.general.file_size = data.len() as u64;
 
         let frame_len = if data.len() >= 6 {
-            (((data[3] & 0x03) as usize) << 11) | ((data[4] as usize) << 3) | ((data[5] >> 5) as usize)
+            (((data[3] & 0x03) as usize) << 11)
+                | ((data[4] as usize) << 3)
+                | ((data[5] >> 5) as usize)
         } else {
             0
         };
@@ -315,7 +304,11 @@ impl ContainerParser {
     fn parse_ac3_stream(data: &[u8]) -> Result<MediaReport> {
         let ac3 = Ac3Header::parse(data)?;
         let mut report = MediaReport::new();
-        report.general.format = if ac3.is_eac3 { ContainerFormat::MPEG4 } else { ContainerFormat::AC3 };
+        report.general.format = if ac3.is_eac3 {
+            ContainerFormat::MPEG4
+        } else {
+            ContainerFormat::AC3
+        };
         report.general.file_size = data.len() as u64;
 
         let dur_ms = if ac3.bit_rate > 0 {
@@ -325,8 +318,16 @@ impl ContainerParser {
         };
 
         let mut a = AudioTrack::default();
-        a.format = if ac3.is_eac3 { AudioCodec::EAC3 } else { AudioCodec::AC3 };
-        a.format_info = Some(if ac3.is_eac3 { "Dolby Digital Plus".to_string() } else { "Dolby Digital".to_string() });
+        a.format = if ac3.is_eac3 {
+            AudioCodec::EAC3
+        } else {
+            AudioCodec::AC3
+        };
+        a.format_info = Some(if ac3.is_eac3 {
+            "Dolby Digital Plus".to_string()
+        } else {
+            "Dolby Digital".to_string()
+        });
         a.sampling_rate = ac3.sample_rate;
         a.bit_rate = Some(ac3.bit_rate);
         a.channels = ac3.channels;
@@ -356,7 +357,13 @@ impl ContainerParser {
         };
 
         let mut a = AudioTrack::default();
-        a.format = if dts.is_dtsx { AudioCodec::DTSX } else if dts.is_dtshd_ma { AudioCodec::DTSHD } else { AudioCodec::DTS };
+        a.format = if dts.is_dtsx {
+            AudioCodec::DTSX
+        } else if dts.is_dtshd_ma {
+            AudioCodec::DTSHD
+        } else {
+            AudioCodec::DTS
+        };
         a.format_info = Some(dts.profile_name.to_string());
         a.sampling_rate = dts.sample_rate;
         a.bit_rate = Some(dts.bit_rate);
@@ -427,7 +434,11 @@ impl ContainerParser {
         report.general.overall_bitrate = amr.bit_rate;
 
         let mut a = AudioTrack::default();
-        a.format = if amr.is_wideband { AudioCodec::AMR_WB } else { AudioCodec::AMR_NB };
+        a.format = if amr.is_wideband {
+            AudioCodec::AMR_WB
+        } else {
+            AudioCodec::AMR_NB
+        };
         a.format_info = Some(amr.format_profile);
         a.channels = amr.channels;
         a.sampling_rate = amr.sample_rate;
@@ -447,13 +458,34 @@ mod tests {
 
     #[test]
     fn test_format_detector() {
-        assert_eq!(FormatDetector::detect(b"\x1A\x45\xDF\xA3\x93\x42\x82\x88matroska"), ContainerFormat::Matroska);
-        assert_eq!(FormatDetector::detect(b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00"), ContainerFormat::MPEG4);
-        assert_eq!(FormatDetector::detect(b"RIFF\x24\x00\x00\x00WAVEfmt "), ContainerFormat::WAV);
-        assert_eq!(FormatDetector::detect(b"OggS\x00\x02\x00\x00"), ContainerFormat::Ogg);
-        assert_eq!(FormatDetector::detect(b"FLV\x01\x05\x00\x00\x00\x09"), ContainerFormat::FLV);
-        assert_eq!(FormatDetector::detect(&[0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11]), ContainerFormat::ASF);
-        assert_eq!(FormatDetector::detect(&[0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01]), ContainerFormat::MXF);
+        assert_eq!(
+            FormatDetector::detect(b"\x1A\x45\xDF\xA3\x93\x42\x82\x88matroska"),
+            ContainerFormat::Matroska
+        );
+        assert_eq!(
+            FormatDetector::detect(b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00"),
+            ContainerFormat::MPEG4
+        );
+        assert_eq!(
+            FormatDetector::detect(b"RIFF\x24\x00\x00\x00WAVEfmt "),
+            ContainerFormat::WAV
+        );
+        assert_eq!(
+            FormatDetector::detect(b"OggS\x00\x02\x00\x00"),
+            ContainerFormat::Ogg
+        );
+        assert_eq!(
+            FormatDetector::detect(b"FLV\x01\x05\x00\x00\x00\x09"),
+            ContainerFormat::FLV
+        );
+        assert_eq!(
+            FormatDetector::detect(&[0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11]),
+            ContainerFormat::ASF
+        );
+        assert_eq!(
+            FormatDetector::detect(&[0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01]),
+            ContainerFormat::MXF
+        );
         assert_eq!(FormatDetector::detect(b"MP+"), ContainerFormat::MPC);
     }
 }

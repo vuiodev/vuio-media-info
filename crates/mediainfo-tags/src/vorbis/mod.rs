@@ -46,9 +46,12 @@ impl VorbisComments {
             });
         }
 
-        let user_comment_list_len =
-            u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
-                as usize;
+        let user_comment_list_len = u32::from_le_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ]) as usize;
         offset += 4;
 
         let mut comments = HashMap::new();

@@ -84,7 +84,10 @@ impl Mpeg2SequenceHeader {
         if let Some(ext_idx) = data.windows(4).position(|w| w == [0x00, 0x00, 0x01, 0xB5]) {
             if ext_idx + 10 <= data.len() {
                 let ext_data = &data[ext_idx + 4..];
-                if let Ok(mut er) = MsbBitReader::new(ext_data).read_bits(4).map(|id| (id, MsbBitReader::new(&ext_data[1..]))) {
+                if let Ok(mut er) = MsbBitReader::new(ext_data)
+                    .read_bits(4)
+                    .map(|id| (id, MsbBitReader::new(&ext_data[1..])))
+                {
                     if er.0 == 1 {
                         // Sequence Extension ID = 1
                         is_mpeg2 = true;

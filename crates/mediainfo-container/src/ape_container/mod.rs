@@ -20,7 +20,9 @@ impl ApeContainerDemuxer {
         }
 
         if !data.starts_with(&APE_MAGIC) {
-            return Err(MediaInfoError::InvalidData("Not a valid Monkey's Audio file".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not a valid Monkey's Audio file".to_string(),
+            ));
         }
 
         let mut report = MediaReport::new();
@@ -37,7 +39,8 @@ impl ApeContainerDemuxer {
 
         if version >= 3980 && data.len() >= 76 {
             // New header format (APE >= 3.98)
-            let descriptor_bytes = u32::from_le_bytes([data[8], data[9], data[10], data[11]]) as usize;
+            let descriptor_bytes =
+                u32::from_le_bytes([data[8], data[9], data[10], data[11]]) as usize;
             let header_offset = descriptor_bytes.max(52);
 
             if data.len() >= header_offset + 24 {
@@ -59,7 +62,8 @@ impl ApeContainerDemuxer {
                     5000 => "Insane",
                     _ => "Lossless",
                 };
-                audio_track.format_profile = Some(format!("{} (Level {})", comp_str, compression_level));
+                audio_track.format_profile =
+                    Some(format!("{} (Level {})", comp_str, compression_level));
                 audio_track.channels = channels;
                 audio_track.sampling_rate = sample_rate;
                 audio_track.bit_depth = Some(bits_per_sample);
@@ -92,12 +96,17 @@ impl ApeContainerDemuxer {
             let channels = u16::from_le_bytes([data[10], data[11]]) as u32;
             let sample_rate = u32::from_le_bytes([data[12], data[13], data[14], data[15]]);
             let total_frames = u32::from_le_bytes([data[24], data[25], data[26], data[27]]) as u64;
-            let final_frame_blocks = u32::from_le_bytes([data[28], data[29], data[30], data[31]]) as u64;
+            let final_frame_blocks =
+                u32::from_le_bytes([data[28], data[29], data[30], data[31]]) as u64;
 
             audio_track.channels = channels;
             audio_track.sampling_rate = sample_rate;
             audio_track.bit_depth = Some(16);
-            audio_track.channel_layout = Some(if channels == 1 { AudioChannelLayout::Mono } else { AudioChannelLayout::Stereo });
+            audio_track.channel_layout = Some(if channels == 1 {
+                AudioChannelLayout::Mono
+            } else {
+                AudioChannelLayout::Stereo
+            });
             audio_track.format_profile = Some(format!("Level {}", compression_level));
 
             if sample_rate > 0 && total_frames > 0 {

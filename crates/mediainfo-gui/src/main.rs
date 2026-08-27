@@ -9,7 +9,11 @@ use tauri::Manager;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    eprintln!("[mediainfo-gui] Starting with {} CLI args: {:?}", args.len(), args);
+    eprintln!(
+        "[mediainfo-gui] Starting with {} CLI args: {:?}",
+        args.len(),
+        args
+    );
 
     tauri::Builder::default()
         .manage(CliState {
@@ -18,7 +22,9 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
-            let window = app.get_webview_window("main").expect("main window not found");
+            let window = app
+                .get_webview_window("main")
+                .expect("main window not found");
             let _ = window.set_title("");
             window_theme::apply_native_theme(&window);
 

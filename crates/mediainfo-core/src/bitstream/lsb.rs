@@ -62,7 +62,7 @@ impl<'a> LsbBitReader<'a> {
 
         if self.remaining_bits() < count as usize {
             return Err(MediaInfoError::UnexpectedEof {
-                expected: (count as usize + 7) / 8,
+                expected: (count as usize).div_ceil(8),
                 actual: 0,
             });
         }

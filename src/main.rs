@@ -62,7 +62,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else if file_path.exists() {
             target_files.push(file_path);
         } else {
-            eprintln!("{}: File '{}' not found", "Error".red().bold(), file_path.display());
+            eprintln!(
+                "{}: File '{}' not found",
+                "Error".red().bold(),
+                file_path.display()
+            );
         }
     }
 
@@ -80,7 +84,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("{}", output_str);
             }
             Err(e) => {
-                eprintln!("{}: Failed to analyze '{}': {}", "Error".red().bold(), path.display(), e);
+                eprintln!(
+                    "{}: Failed to analyze '{}': {}",
+                    "Error".red().bold(),
+                    path.display(),
+                    e
+                );
             }
         }
     } else {
@@ -93,7 +102,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             match MediaInfo::open_path(path) {
                 Ok(report) => Some((path.clone(), report)),
                 Err(e) => {
-                    eprintln!("{}: Failed to analyze '{}': {}", "Error".red().bold(), path.display(), e);
+                    eprintln!(
+                        "{}: Failed to analyze '{}': {}",
+                        "Error".red().bold(),
+                        path.display(),
+                        e
+                    );
                     None
                 }
             }

@@ -19,7 +19,9 @@ impl IvfDemuxer {
         }
 
         if !data.starts_with(&IVF_MAGIC) {
-            return Err(MediaInfoError::InvalidData("Not a valid IVF file".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not a valid IVF file".to_string(),
+            ));
         }
 
         let mut report = MediaReport::new();

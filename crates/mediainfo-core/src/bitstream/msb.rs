@@ -87,7 +87,7 @@ impl<'a> MsbBitReader<'a> {
 
         if self.remaining_bits() < count as usize {
             return Err(MediaInfoError::UnexpectedEof {
-                expected: (count as usize + 7) / 8,
+                expected: (count as usize).div_ceil(8),
                 actual: self.remaining_bytes(),
             });
         }
@@ -154,7 +154,7 @@ impl<'a> MsbBitReader<'a> {
     pub fn skip_bits(&mut self, count: usize) -> Result<()> {
         if self.remaining_bits() < count {
             return Err(MediaInfoError::UnexpectedEof {
-                expected: (count + 7) / 8,
+                expected: count.div_ceil(8),
                 actual: self.remaining_bytes(),
             });
         }
@@ -222,7 +222,7 @@ impl<'a> MsbBitReader<'a> {
     pub fn read_se(&mut self) -> Result<i32> {
         let code_num = self.read_ue()?;
         if code_num % 2 == 1 {
-            Ok(((code_num + 1) / 2) as i32)
+            Ok(code_num.div_ceil(2) as i32)
         } else {
             Ok(-((code_num / 2) as i32))
         }
@@ -308,8 +308,8 @@ mod tests {
         let data = [0b10101100, 0b11110000];
         let mut reader = MsbBitReader::new(&data);
 
-        assert_eq!(reader.read_bit().unwrap(), true);
-        assert_eq!(reader.read_bit().unwrap(), false);
+        assert!(reader.read_bit().unwrap());
+        assert!(!reader.read_bit().unwrap());
         assert_eq!(reader.read_bits(4).unwrap(), 0b1011);
         assert_eq!(reader.read_bits(2).unwrap(), 0b00);
         assert_eq!(reader.read_bits(8).unwrap(), 0b11110000);

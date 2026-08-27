@@ -27,15 +27,29 @@ impl XmpTag {
         let extract_elem = |xml: &str, tag_name: &str| -> Option<String> {
             let patterns = [
                 (format!("<{}>", tag_name), format!("</{}>", tag_name)),
-                (format!("<tiff:{}>", tag_name), format!("</tiff:{}>", tag_name)),
-                (format!("<exif:{}>", tag_name), format!("</exif:{}>", tag_name)),
+                (
+                    format!("<tiff:{}>", tag_name),
+                    format!("</tiff:{}>", tag_name),
+                ),
+                (
+                    format!("<exif:{}>", tag_name),
+                    format!("</exif:{}>", tag_name),
+                ),
                 (format!("<dc:{}>", tag_name), format!("</dc:{}>", tag_name)),
-                (format!("<xmp:{}>", tag_name), format!("</xmp:{}>", tag_name)),
-                (format!("<aux:{}>", tag_name), format!("</aux:{}>", tag_name)),
+                (
+                    format!("<xmp:{}>", tag_name),
+                    format!("</xmp:{}>", tag_name),
+                ),
+                (
+                    format!("<aux:{}>", tag_name),
+                    format!("</aux:{}>", tag_name),
+                ),
             ];
 
             for (open, close) in &patterns {
-                if let (Some(start), Some(end)) = (xml.find(open.as_str()), xml.find(close.as_str())) {
+                if let (Some(start), Some(end)) =
+                    (xml.find(open.as_str()), xml.find(close.as_str()))
+                {
                     let val = &xml[start + open.len()..end].trim();
                     if !val.is_empty() && !val.starts_with('<') {
                         return Some(val.to_string());
@@ -61,7 +75,8 @@ impl XmpTag {
         xmp.camera_make = extract_elem(&text, "Make");
         xmp.camera_model = extract_elem(&text, "Model");
         xmp.lens_model = extract_elem(&text, "LensModel").or_else(|| extract_elem(&text, "Lens"));
-        xmp.create_date = extract_elem(&text, "CreateDate").or_else(|| extract_elem(&text, "DateTimeOriginal"));
+        xmp.create_date =
+            extract_elem(&text, "CreateDate").or_else(|| extract_elem(&text, "DateTimeOriginal"));
         xmp.creator = extract_elem(&text, "creator");
         xmp.title = extract_elem(&text, "title");
         xmp.description = extract_elem(&text, "description");

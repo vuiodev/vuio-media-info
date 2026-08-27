@@ -19,7 +19,9 @@ impl OggDemuxer {
         }
 
         if !data.starts_with(b"OggS") {
-            return Err(MediaInfoError::InvalidData("Not a valid Ogg bitstream".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not a valid Ogg bitstream".to_string(),
+            ));
         }
 
         let mut report = MediaReport::new();
@@ -125,8 +127,14 @@ impl OggDemuxer {
         for i in (0..tail.len().saturating_sub(27)).rev() {
             if &tail[i..i + 4] == b"OggS" {
                 let granule = u64::from_le_bytes([
-                    tail[i + 6], tail[i + 7], tail[i + 8], tail[i + 9],
-                    tail[i + 10], tail[i + 11], tail[i + 12], tail[i + 13],
+                    tail[i + 6],
+                    tail[i + 7],
+                    tail[i + 8],
+                    tail[i + 9],
+                    tail[i + 10],
+                    tail[i + 11],
+                    tail[i + 12],
+                    tail[i + 13],
                 ]);
                 if granule > 0 && granule != u64::MAX {
                     last_granule_pos = Some(granule);
@@ -136,7 +144,11 @@ impl OggDemuxer {
         }
 
         if let Some(granule) = last_granule_pos {
-            let sample_rate = if audio_track.sampling_rate > 0 { audio_track.sampling_rate } else { 48000 };
+            let sample_rate = if audio_track.sampling_rate > 0 {
+                audio_track.sampling_rate
+            } else {
+                48000
+            };
             let dur_ms = (granule as f64 / sample_rate as f64) * 1000.0;
             if dur_ms > 0.0 {
                 report.general.duration_ms = Some(dur_ms);

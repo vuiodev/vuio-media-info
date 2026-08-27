@@ -68,7 +68,11 @@ impl VvcSps {
             _ => format!("Profile {}", profile_idc),
         };
 
-        let tier = if tier_flag { "High".to_string() } else { "Main".to_string() };
+        let tier = if tier_flag {
+            "High".to_string()
+        } else {
+            "Main".to_string()
+        };
         let level_name = format!("{}.{}", level_idc / 16, (level_idc % 16) / 3);
 
         let chroma_subsampling = match chroma_format_idc {
@@ -99,7 +103,8 @@ mod tests {
     fn test_vvc_sps_parser() {
         let sps_bytes = [
             0x00, 0x78, // NAL header (type 15 = SPS)
-            0x00, 0x00, // sps_id=0, vps_id=0, max_sub_layers=0, chroma=1 (4:2:0), ctu=0, ptl=0
+            0x00,
+            0x00, // sps_id=0, vps_id=0, max_sub_layers=0, chroma=1 (4:2:0), ctu=0, ptl=0
         ];
         // Minimal sanity check
         assert!(sps_bytes.len() >= 4);

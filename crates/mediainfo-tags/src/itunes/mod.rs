@@ -82,8 +82,7 @@ impl ItunesTags {
             return None;
         }
 
-        let type_code =
-            u32::from_be_bytes([payload[8], payload[9], payload[10], payload[11]]);
+        let type_code = u32::from_be_bytes([payload[8], payload[9], payload[10], payload[11]]);
         let value = &payload[16..size];
         Some((type_code, value))
     }

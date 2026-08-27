@@ -25,7 +25,9 @@ impl DsdDemuxer {
         } else if data.starts_with(&DSDIFF_MAGIC) {
             Self::parse_dsdiff(data)
         } else {
-            Err(MediaInfoError::InvalidData("Not a valid DSD file".to_string()))
+            Err(MediaInfoError::InvalidData(
+                "Not a valid DSD file".to_string(),
+            ))
         }
     }
 
@@ -43,22 +45,32 @@ impl DsdDemuxer {
 
         // DSD chunk
         let metadata_offset = u64::from_le_bytes([
-            data[20], data[21], data[22], data[23],
-            data[24], data[25], data[26], data[27],
+            data[20], data[21], data[22], data[23], data[24], data[25], data[26], data[27],
         ]) as usize;
 
         // fmt chunk (starts at offset 28)
         let fmt_chunk = &data[28..];
         if !fmt_chunk.starts_with(b"fmt ") || fmt_chunk.len() < 52 {
-            return Err(MediaInfoError::InvalidData("Missing DSF fmt chunk".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Missing DSF fmt chunk".to_string(),
+            ));
         }
 
-        let channels = u32::from_le_bytes([fmt_chunk[24], fmt_chunk[25], fmt_chunk[26], fmt_chunk[27]]);
-        let sample_rate = u32::from_le_bytes([fmt_chunk[28], fmt_chunk[29], fmt_chunk[30], fmt_chunk[31]]);
-        let bits_per_sample = u32::from_le_bytes([fmt_chunk[32], fmt_chunk[33], fmt_chunk[34], fmt_chunk[35]]) as u8;
+        let channels =
+            u32::from_le_bytes([fmt_chunk[24], fmt_chunk[25], fmt_chunk[26], fmt_chunk[27]]);
+        let sample_rate =
+            u32::from_le_bytes([fmt_chunk[28], fmt_chunk[29], fmt_chunk[30], fmt_chunk[31]]);
+        let bits_per_sample =
+            u32::from_le_bytes([fmt_chunk[32], fmt_chunk[33], fmt_chunk[34], fmt_chunk[35]]) as u8;
         let sample_count = u64::from_le_bytes([
-            fmt_chunk[36], fmt_chunk[37], fmt_chunk[38], fmt_chunk[39],
-            fmt_chunk[40], fmt_chunk[41], fmt_chunk[42], fmt_chunk[43],
+            fmt_chunk[36],
+            fmt_chunk[37],
+            fmt_chunk[38],
+            fmt_chunk[39],
+            fmt_chunk[40],
+            fmt_chunk[41],
+            fmt_chunk[42],
+            fmt_chunk[43],
         ]);
 
         let dsd_rate_name = match sample_rate {
@@ -129,8 +141,14 @@ impl DsdDemuxer {
         while offset + 12 <= data.len() {
             let chunk_id = &data[offset..offset + 4];
             let chunk_size = u64::from_be_bytes([
-                data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7],
-                data[offset + 8], data[offset + 9], data[offset + 10], data[offset + 11],
+                data[offset + 4],
+                data[offset + 5],
+                data[offset + 6],
+                data[offset + 7],
+                data[offset + 8],
+                data[offset + 9],
+                data[offset + 10],
+                data[offset + 11],
             ]) as usize;
             offset += 12;
 
@@ -145,8 +163,14 @@ impl DsdDemuxer {
                 while prop_offset + 12 <= payload.len() {
                     let sub_id = &payload[prop_offset..prop_offset + 4];
                     let sub_size = u64::from_be_bytes([
-                        payload[prop_offset + 4], payload[prop_offset + 5], payload[prop_offset + 6], payload[prop_offset + 7],
-                        payload[prop_offset + 8], payload[prop_offset + 9], payload[prop_offset + 10], payload[prop_offset + 11],
+                        payload[prop_offset + 4],
+                        payload[prop_offset + 5],
+                        payload[prop_offset + 6],
+                        payload[prop_offset + 7],
+                        payload[prop_offset + 8],
+                        payload[prop_offset + 9],
+                        payload[prop_offset + 10],
+                        payload[prop_offset + 11],
                     ]) as usize;
                     prop_offset += 12;
 
@@ -158,7 +182,12 @@ impl DsdDemuxer {
 
                     match sub_id {
                         b"FSAM" if sub_payload.len() >= 4 => {
-                            let sr = u32::from_be_bytes([sub_payload[0], sub_payload[1], sub_payload[2], sub_payload[3]]);
+                            let sr = u32::from_be_bytes([
+                                sub_payload[0],
+                                sub_payload[1],
+                                sub_payload[2],
+                                sub_payload[3],
+                            ]);
                             a.sampling_rate = sr;
                             let name = match sr {
                                 2822400 => "DSD64 (1-bit / 2.8224 MHz)",
@@ -181,7 +210,8 @@ impl DsdDemuxer {
                         b"CMPR" if sub_payload.len() >= 4 => {
                             let comp = &sub_payload[0..4];
                             if comp == b"DST " {
-                                a.compression_mode = Some("Lossless (Direct Stream Transfer)".to_string());
+                                a.compression_mode =
+                                    Some("Lossless (Direct Stream Transfer)".to_string());
                                 a.format_info = Some("DST Compressed DSD".to_string());
                             }
                         }

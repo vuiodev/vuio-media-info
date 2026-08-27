@@ -25,7 +25,9 @@ impl AmrInfo {
         } else if data.starts_with(&AMR_NB_MAGIC) {
             (false, 6)
         } else {
-            return Err(MediaInfoError::InvalidData("Not a valid AMR file".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not a valid AMR file".to_string(),
+            ));
         };
 
         let sample_rate = if is_wideband { 16000 } else { 8000 };
@@ -39,16 +41,20 @@ impl AmrInfo {
         let mut frame_count = 0u64;
         while offset < data.len() {
             let header_byte = data[offset];
-            let mode = if is_wideband {
-                ((header_byte >> 3) & 0x0F) as usize
-            } else {
-                ((header_byte >> 3) & 0x0F) as usize
-            };
+            let mode = ((header_byte >> 3) & 0x0F) as usize;
 
             let frame_size = if is_wideband {
-                if mode < AMR_WB_FRAME_SIZES.len() { AMR_WB_FRAME_SIZES[mode] } else { 1 }
+                if mode < AMR_WB_FRAME_SIZES.len() {
+                    AMR_WB_FRAME_SIZES[mode]
+                } else {
+                    1
+                }
             } else {
-                if mode < AMR_NB_FRAME_SIZES.len() { AMR_NB_FRAME_SIZES[mode] } else { 1 }
+                if mode < AMR_NB_FRAME_SIZES.len() {
+                    AMR_NB_FRAME_SIZES[mode]
+                } else {
+                    1
+                }
             };
 
             offset += frame_size;

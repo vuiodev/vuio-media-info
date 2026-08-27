@@ -1,0 +1,647 @@
+name: Release
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      task_to_run:
+        description: 'Which part of the workflow to run'
+        type: choice
+        options:
+          - test
+          - release
+        required: true
+        default: 'test'
+      tag_name:
+        description: 'Required for "release" task: The tag for the action (e.g., v0.1.0)'
+        required: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  BINARY_NAME: mediainfo
+  GUI_BINARY_NAME: mediainfo-gui
+
+jobs:
+  format:
+    name: Rustfmt
+    if: |
+      github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  web_ui:
+    name: Web UI bundle is intact
+    if: |
+      github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build Web UI
+        working-directory: crates/mediainfo-gui
+        run: |
+          npm ci || npm install
+          npm run build
+          test -f dist/index.html || { echo "::error::dist/index.html is missing"; exit 1; }
+
+  clippy:
+    name: Clippy on ${{ matrix.os }}
+    if: |
+      github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js (GUI platforms)
+        if: runner.os != 'Linux'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build GUI frontend assets (GUI platforms)
+        if: runner.os != 'Linux'
+        working-directory: crates/mediainfo-gui
+        run: |
+          npm ci || npm install
+          npm run build
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: clippy-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock') }}
+      - name: Run Clippy (Linux: CLI & Libs)
+        if: runner.os == 'Linux'
+        run: cargo clippy --workspace --exclude mediainfo-gui --all-targets --all-features -- -D clippy::all -D warnings
+      - name: Run Clippy (macOS & Windows: Full Workspace including GUI)
+        if: runner.os != 'Linux'
+        run: cargo clippy --workspace --all-targets --all-features -- -D clippy::all -D warnings
+
+  feature_matrix:
+    name: Feature & Crates Check
+    if: |
+      github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: features-${{ hashFiles('**/Cargo.lock') }}
+      - name: Check individual crates
+        run: |
+          for crate in mediainfo-core mediainfo-video mediainfo-audio mediainfo-tags \
+                       mediainfo-container mediainfo-format mediainfo-diff mediainfo; do
+            echo "::group::Check $crate"
+            cargo check -p "$crate" --all-targets
+            echo "::endgroup::"
+          done
+
+  msrv:
+    name: Minimum supported Rust version
+    if: |
+      github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Read rust-version from the manifest
+        id: msrv
+        run: |
+          version=$(grep -m1 '^rust-version' Cargo.toml | cut -d'"' -f2 || echo "1.80.0")
+          echo "Declared MSRV: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Install the declared toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: msrv-${{ steps.msrv.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}
+      - name: Check CLI and core crates with declared MSRV
+        run: cargo check -p mediainfo-core -p mediainfo-video -p mediainfo-audio -p mediainfo-tags -p mediainfo-container -p mediainfo-format -p mediainfo
+
+  # ===================================================================
+  # Run Tests and Checks (Push, Pull Requests, or Manual 'test' run)
+  # ===================================================================
+  test_and_check:
+    name: Test on ${{ matrix.target }}
+    if: |
+      github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows (CLI + GUI)
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            build_gui: true
+          - runner: windows-latest
+            target: aarch64-pc-windows-msvc
+            build_gui: true
+
+          # macOS (CLI + GUI)
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            build_gui: true
+          - runner: macos-14
+            target: aarch64-apple-darwin
+            build_gui: true
+
+          # Linux (CLI only)
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            build_gui: false
+          - runner: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            build_gui: false
+          - runner: ubuntu-latest
+            target: armv7-unknown-linux-gnueabihf
+            build_gui: false
+
+          # FreeBSD (CLI only)
+          - runner: ubuntu-latest
+            target: x86_64-unknown-freebsd
+            build_gui: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (GUI platforms)
+        if: matrix.build_gui == true
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build GUI frontend assets (GUI platforms)
+        if: matrix.build_gui == true
+        working-directory: crates/mediainfo-gui
+        run: |
+          npm ci || npm install
+          npm run build
+
+      - name: Install Rust toolchain (stable)
+        if: matrix.target != 'x86_64-unknown-freebsd'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Cargo dependencies
+        if: matrix.target != 'x86_64-unknown-freebsd'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cross-linker (Linux ARM)
+        if: runner.os == 'Linux' && (matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'armv7-unknown-linux-gnueabihf')
+        run: |
+          sudo apt-get update
+          if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+          elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
+            sudo apt-get install -y gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
+          fi
+
+      - name: Configure cross-linker (Linux ARM)
+        if: runner.os == 'Linux' && (matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'armv7-unknown-linux-gnueabihf')
+        run: |
+          mkdir -p ~/.cargo
+          if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
+            echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+            echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+          elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
+            echo '[target.armv7-unknown-linux-gnueabihf]' >> ~/.cargo/config.toml
+            echo 'linker = "arm-linux-gnueabihf-gcc"' >> ~/.cargo/config.toml
+          fi
+
+      - name: Build project (CLI + GUI)
+        if: matrix.build_gui == true
+        run: cargo build --workspace --target ${{ matrix.target }}
+
+      - name: Build project (CLI only)
+        if: matrix.build_gui == false && matrix.target != 'x86_64-unknown-freebsd'
+        run: cargo build -p mediainfo --target ${{ matrix.target }}
+
+      - name: Run tests (Native GUI platforms)
+        if: matrix.build_gui == true && matrix.target != 'aarch64-pc-windows-msvc'
+        run: cargo test --workspace --target ${{ matrix.target }}
+
+      - name: Run tests (Native Linux CLI)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: cargo test --workspace --exclude mediainfo-gui --target ${{ matrix.target }}
+
+      - name: Build and test in FreeBSD VM (CLI only)
+        if: matrix.target == 'x86_64-unknown-freebsd'
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "14"
+          usesh: true
+          sync: rsync
+          copyback: false
+          mem: "6144"
+          cache-after-prepare: true
+          prepare: |
+            pkg install -y curl bash git
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          run: |
+            set -e
+            . "$HOME/.cargo/env"
+            rustc -vV
+            cargo build -p mediainfo
+            cargo test --workspace --exclude mediainfo-gui
+
+  # ===================================================================
+  # Job: Build Release Artifacts
+  # ===================================================================
+  build_release_artifacts:
+    name: Build release for ${{ matrix.target }}
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'release')
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows (CLI + GUI)
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            os-arch: windows-x86_64
+            asset_ext: .zip
+            build_gui: true
+          - runner: windows-latest
+            target: aarch64-pc-windows-msvc
+            os-arch: windows-arm64
+            asset_ext: .zip
+            build_gui: true
+
+          # macOS (CLI + GUI)
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            os-arch: macos-x86_64
+            asset_ext: .tar.gz
+            build_gui: true
+          - runner: macos-14
+            target: aarch64-apple-darwin
+            os-arch: macos-arm64
+            asset_ext: .tar.gz
+            build_gui: true
+
+          # Linux (CLI only)
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            os-arch: linux-x86_64
+            asset_ext: .tar.gz
+            build_gui: false
+          - runner: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            os-arch: linux-arm64
+            asset_ext: .tar.gz
+            build_gui: false
+          - runner: ubuntu-latest
+            target: armv7-unknown-linux-gnueabihf
+            os-arch: linux-armv7
+            asset_ext: .tar.gz
+            build_gui: false
+
+          # FreeBSD (CLI only)
+          - runner: ubuntu-latest
+            target: x86_64-unknown-freebsd
+            os-arch: freebsd-x86_64
+            asset_ext: .tar.gz
+            build_gui: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (GUI platforms)
+        if: matrix.build_gui == true
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build GUI frontend assets (GUI platforms)
+        if: matrix.build_gui == true
+        working-directory: crates/mediainfo-gui
+        run: |
+          npm ci || npm install
+          npm run build
+
+      - name: Install Rust toolchain
+        if: matrix.target != 'x86_64-unknown-freebsd'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-linker (Linux ARM)
+        if: runner.os == 'Linux' && (matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'armv7-unknown-linux-gnueabihf')
+        run: |
+          sudo apt-get update
+          if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+          elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
+            sudo apt-get install -y gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
+          fi
+
+      - name: Configure cross-linker (Linux ARM)
+        if: runner.os == 'Linux' && (matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'armv7-unknown-linux-gnueabihf')
+        run: |
+          mkdir -p ~/.cargo
+          if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
+            echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+            echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+          elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
+            echo '[target.armv7-unknown-linux-gnueabihf]' >> ~/.cargo/config.toml
+            echo 'linker = "arm-linux-gnueabihf-gcc"' >> ~/.cargo/config.toml
+          fi
+
+      - name: Build binary (Workspace release: CLI + GUI)
+        if: matrix.build_gui == true
+        run: cargo build --release --workspace --target ${{ matrix.target }}
+
+      - name: Build binary (CLI only release)
+        if: matrix.build_gui == false && matrix.target != 'x86_64-unknown-freebsd'
+        run: cargo build --release -p mediainfo --target ${{ matrix.target }}
+
+      - name: Build binary in FreeBSD VM (CLI only)
+        if: matrix.target == 'x86_64-unknown-freebsd'
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "14"
+          usesh: true
+          sync: rsync
+          copyback: true
+          mem: "6144"
+          cache-after-prepare: true
+          prepare: |
+            pkg install -y curl bash git
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          run: |
+            set -e
+            . "$HOME/.cargo/env"
+            rustc -vV
+            cargo build --release -p mediainfo
+
+      - name: Package artifacts
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            if [ -z "${{ github.event.inputs.tag_name }}" ]; then
+              echo "Error: The 'tag_name' input is required when running the 'release' task."
+              exit 1
+            fi
+            VERSION_TAG="${{ github.event.inputs.tag_name }}"
+          else
+            VERSION_TAG="${{ github.ref_name }}"
+          fi
+          VERSION=${VERSION_TAG#v}
+          echo "Packaging artifacts for version: $VERSION_TAG"
+
+          if [ "${{ matrix.target }}" == "x86_64-unknown-freebsd" ]; then
+            RELEASE_DIR="target/release"
+          else
+            RELEASE_DIR="target/${{ matrix.target }}/release"
+          fi
+
+          STAGING="stage-${{ matrix.os-arch }}"
+          mkdir -p "$STAGING"
+
+          # Copy CLI binary
+          if [ -f "$RELEASE_DIR/${{ env.BINARY_NAME }}.exe" ]; then
+            cp "$RELEASE_DIR/${{ env.BINARY_NAME }}.exe" "$STAGING/"
+          elif [ -f "$RELEASE_DIR/${{ env.BINARY_NAME }}" ]; then
+            cp "$RELEASE_DIR/${{ env.BINARY_NAME }}" "$STAGING/"
+          fi
+
+          # Copy GUI binary if built on supported platforms (Windows & macOS)
+          if [ "${{ matrix.build_gui }}" == "true" ]; then
+            if [ -f "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}.exe" ]; then
+              cp "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}.exe" "$STAGING/"
+            elif [ -f "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}" ]; then
+              cp "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}" "$STAGING/"
+            fi
+          fi
+
+          # Copy documentation and licenses
+          cp README.md LICENSE-MIT LICENSE-APACHE "$STAGING/" 2>/dev/null || true
+
+          ASSET_NAME="${{ env.BINARY_NAME }}-${{ matrix.os-arch }}${{ matrix.asset_ext }}"
+          if [ "${{ matrix.asset_ext }}" == ".zip" ]; then
+            (cd "$STAGING" && zip -r "../$ASSET_NAME" .)
+          else
+            tar -czf "$ASSET_NAME" -C "$STAGING" .
+          fi
+
+      - name: Upload artifact for release
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifact-${{ matrix.os-arch }}
+          path: ${{ env.BINARY_NAME }}-*
+
+  # ===================================================================
+  # Job: Create GitHub Release
+  # ===================================================================
+  create_github_release:
+    name: Create GitHub Release
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'release')
+    runs-on: ubuntu-latest
+    needs: build_release_artifacts
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Create GitHub Release and Upload Artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name || github.ref_name }}
+          draft: true
+          files: release-artifacts/*/*
+
+  # ===================================================================
+  # Job: Update Homebrew Formula (Optional Tap sync)
+  # ===================================================================
+  update_homebrew_formula:
+    name: Update Homebrew Formula
+    needs: [build_release_artifacts, create_github_release]
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'release')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Homebrew Token Availability
+        id: check_token
+        run: |
+          if [ -n "${{ secrets.HOMEBREW_TAP_TOKEN }}" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            echo "No HOMEBREW_TAP_TOKEN secret configured; skipping Homebrew tap sync."
+          fi
+
+      - name: Get tag name
+        if: steps.check_token.outputs.has_token == 'true'
+        id: get_tag
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "TAG=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all release artifacts
+        if: steps.check_token.outputs.has_token == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Checkout Homebrew Tap Repo
+        if: steps.check_token.outputs.has_token == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/homebrew-mediainfo
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-mediainfo
+
+      - name: Calculate Checksums and Update Formula
+        if: steps.check_token.outputs.has_token == 'true'
+        run: |
+          TAG_NAME="${{ steps.get_tag.outputs.TAG }}"
+          VERSION=${TAG_NAME#v}
+          
+          echo "Calculating checksums for release $TAG_NAME..."
+          
+          get_sha256() {
+            local asset_name=$1
+            local file_path
+            file_path=$(find release-artifacts -name "$asset_name" -type f | head -n 1)
+            if [ -z "$file_path" ] || [ ! -f "$file_path" ]; then
+              echo "Error: Release asset $asset_name not found in downloaded artifacts!" >&2
+              exit 1
+            fi
+            sha256sum "$file_path" | cut -d' ' -f1
+          }
+          
+          MAC_ARM_SHA=$(get_sha256 "mediainfo-macos-arm64.tar.gz")
+          MAC_INTEL_SHA=$(get_sha256 "mediainfo-macos-x86_64.tar.gz")
+          LINUX_ARM64_SHA=$(get_sha256 "mediainfo-linux-arm64.tar.gz")
+          LINUX_ARMV7_SHA=$(get_sha256 "mediainfo-linux-armv7.tar.gz")
+          LINUX_INTEL_SHA=$(get_sha256 "mediainfo-linux-x86_64.tar.gz")
+          
+          echo "Updating Formula/mediainfo.rb..."
+          FORMULA_FILE="homebrew-mediainfo/Formula/mediainfo.rb"
+          
+          if [ -f "$FORMULA_FILE" ]; then
+            sed -i "s/version \".*\"/version \"${VERSION}\"/" "$FORMULA_FILE"
+            sed -i "s|releases/download/v.*/|releases/download/${TAG_NAME}/|g" "$FORMULA_FILE"
+            
+            python3 -c "
+          import re, sys
+          
+          mac_arm = '$MAC_ARM_SHA'
+          mac_intel = '$MAC_INTEL_SHA'
+          linux_arm64 = '$LINUX_ARM64_SHA'
+          linux_armv7 = '$LINUX_ARMV7_SHA'
+          linux_intel = '$LINUX_INTEL_SHA'
+          
+          with open('$FORMULA_FILE', 'r') as f:
+              content = f.read()
+              
+          patterns = [
+              (r'(mediainfo-macos-arm64\.tar\.gz\"\s+sha256\s+\")[^\"]+(\")', mac_arm),
+              (r'(mediainfo-macos-x86_64\.tar\.gz\"\s+sha256\s+\")[^\"]+(\")', mac_intel),
+              (r'(mediainfo-linux-arm64\.tar\.gz\"\s+sha256\s+\")[^\"]+(\")', linux_arm64),
+              (r'(mediainfo-linux-armv7\.tar\.gz\"\s+sha256\s+\")[^\"]+(\")', linux_armv7),
+              (r'(mediainfo-linux-x86_64\.tar\.gz\"\s+sha256\s+\")[^\"]+(\")', linux_intel),
+          ]
+          
+          for pattern, sha in patterns:
+              new_content, count = re.subn(pattern, r'\g<1>' + sha + r'\g<2>', content)
+              if count >= 1:
+                  content = new_content
+          
+          with open('$FORMULA_FILE', 'w') as f:
+              f.write(content)
+          "
+            
+            cd homebrew-mediainfo
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add Formula/mediainfo.rb
+            git commit -m "Update mediainfo formula to version ${VERSION}" || echo "No changes to commit"
+            git push origin main || echo "Push failed or not permitted"
+          fi

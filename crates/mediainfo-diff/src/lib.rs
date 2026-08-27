@@ -1,8 +1,5 @@
 use mediainfo_container::ContainerParser;
-use mediainfo_core::{
-    error::Result,
-    models::MediaReport,
-};
+use mediainfo_core::{error::Result, models::MediaReport};
 use std::path::Path;
 use std::process::Command;
 
@@ -57,7 +54,12 @@ impl DifferentialTester {
                     match track_type {
                         "General" => {
                             if let Some(fmt) = track.get("Format").and_then(|f| f.as_str()) {
-                                if !rust_report.general.format.display_name().eq_ignore_ascii_case(fmt) {
+                                if !rust_report
+                                    .general
+                                    .format
+                                    .display_name()
+                                    .eq_ignore_ascii_case(fmt)
+                                {
                                     diffs.push(format!(
                                         "General.Format mismatch: Rust={}, C++={}",
                                         rust_report.general.format.display_name(),
@@ -70,12 +72,18 @@ impl DifferentialTester {
                             if let Some(rust_v) = rust_report.videos.first() {
                                 if let Some(w) = track.get("Width").and_then(|w| w.as_str()) {
                                     if rust_v.width.to_string() != w {
-                                        diffs.push(format!("Video.Width mismatch: Rust={}, C++={}", rust_v.width, w));
+                                        diffs.push(format!(
+                                            "Video.Width mismatch: Rust={}, C++={}",
+                                            rust_v.width, w
+                                        ));
                                     }
                                 }
                                 if let Some(h) = track.get("Height").and_then(|h| h.as_str()) {
                                     if rust_v.height.to_string() != h {
-                                        diffs.push(format!("Video.Height mismatch: Rust={}, C++={}", rust_v.height, h));
+                                        diffs.push(format!(
+                                            "Video.Height mismatch: Rust={}, C++={}",
+                                            rust_v.height, h
+                                        ));
                                     }
                                 }
                             }
@@ -84,7 +92,10 @@ impl DifferentialTester {
                             if let Some(rust_a) = rust_report.audios.first() {
                                 if let Some(ch) = track.get("Channels").and_then(|c| c.as_str()) {
                                     if rust_a.channels.to_string() != ch {
-                                        diffs.push(format!("Audio.Channels mismatch: Rust={}, C++={}", rust_a.channels, ch));
+                                        diffs.push(format!(
+                                            "Audio.Channels mismatch: Rust={}, C++={}",
+                                            rust_a.channels, ch
+                                        ));
                                     }
                                 }
                             }

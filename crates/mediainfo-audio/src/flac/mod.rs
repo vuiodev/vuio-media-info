@@ -47,7 +47,7 @@ impl FlacStreamInfo {
         let max_frame_size = r.read_u24_be()?;
 
         let sample_rate = r.read_bits(20)?;
-        let channels_minus1 = r.read_bits(3)? as u32;
+        let channels_minus1 = r.read_bits(3)?;
         let channels = channels_minus1 + 1;
         let bits_per_sample_minus1 = r.read_bits(5)? as u8;
         let bit_depth = bits_per_sample_minus1 + 1;

@@ -17,7 +17,9 @@ impl FlvDemuxer {
         }
 
         if !data.starts_with(b"FLV") {
-            return Err(MediaInfoError::InvalidData("Not a valid FLV file".to_string()));
+            return Err(MediaInfoError::InvalidData(
+                "Not a valid FLV file".to_string(),
+            ));
         }
 
         let mut report = MediaReport::new();

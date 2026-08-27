@@ -93,7 +93,12 @@ impl MpegaHeader {
             (false, 3) => MP3_BITRATES_V2_L1[bitrate_idx],
             (false, _) => MP3_BITRATES_V2_L23[bitrate_idx],
         };
-        let bit_rate = (if bit_rate_kbps > 0 { bit_rate_kbps } else { 128 }) as u64 * 1000;
+        let bit_rate = (if bit_rate_kbps > 0 {
+            bit_rate_kbps
+        } else {
+            128
+        }) as u64
+            * 1000;
 
         let (channels, channel_layout) = match channel_mode {
             3 => (1, AudioChannelLayout::Mono),
@@ -113,7 +118,8 @@ impl MpegaHeader {
                 (((12 * bit_rate / sample_rate as u64) + padding as u64) * 4) as usize
             } else {
                 // Layer 2 or 3
-                ((samples_per_frame as u64 * bit_rate / (8 * sample_rate as u64)) + padding as u64) as usize
+                ((samples_per_frame as u64 * bit_rate / (8 * sample_rate as u64)) + padding as u64)
+                    as usize
             }
         } else {
             418
