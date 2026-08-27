@@ -160,3 +160,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## License
 
 MIT or Apache 2.0
+
+---
+
+## Attribution
+
+Part of this work is based on MediaInfoLib by MediaArea.net SARL.
+See NOTICE for original MediaInfoLib license.
