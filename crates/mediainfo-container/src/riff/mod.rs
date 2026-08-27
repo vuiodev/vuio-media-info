@@ -139,6 +139,10 @@ impl RiffDemuxer {
                 } else {
                     "Lossy".to_string()
                 });
+            } else if chunk_id == b"bext" && payload.len() >= 346 {
+                Self::parse_bext_chunk(payload, report);
+            } else if (chunk_id == b"iXML" || chunk_id == b"ixml") && !payload.is_empty() {
+                Self::parse_ixml_chunk(payload, report);
             } else if chunk_id == b"LIST" && payload.len() >= 4 {
                 if &payload[0..4] == b"INFO" {
                     Self::parse_riff_info_list(&payload[4..], report);
@@ -295,6 +299,97 @@ impl RiffDemuxer {
                 break;
             }
             info_data = &info_data[next_offset..];
+        }
+    }
+
+    fn parse_bext_chunk(payload: &[u8], report: &mut MediaReport) {
+        if payload.len() < 346 {
+            return;
+        }
+        let desc = String::from_utf8_lossy(&payload[0..256]).trim_end_matches('\0').trim().to_string();
+        let orig = String::from_utf8_lossy(&payload[256..288]).trim_end_matches('\0').trim().to_string();
+        let orig_ref = String::from_utf8_lossy(&payload[288..320]).trim_end_matches('\0').trim().to_string();
+        let orig_date = String::from_utf8_lossy(&payload[320..330]).trim_end_matches('\0').trim().to_string();
+        let orig_time = String::from_utf8_lossy(&payload[330..338]).trim_end_matches('\0').trim().to_string();
+        let time_ref = u64::from_le_bytes([
+            payload[338], payload[339], payload[340], payload[341],
+            payload[342], payload[343], payload[344], payload[345],
+        ]);
+
+        if !desc.is_empty() && report.general.title.is_none() {
+            report.general.title = Some(desc.clone());
+        }
+        if !orig.is_empty() && report.general.encoded_application.is_none() {
+            report.general.encoded_application = Some(orig.clone());
+        }
+        if !orig_date.is_empty() {
+            report.general.recorded_date = Some(if !orig_time.is_empty() {
+                format!("{} {}", orig_date, orig_time)
+            } else {
+                orig_date
+            });
+        }
+
+        report.general.extra.insert("BWF:Description".to_string(), desc);
+        report.general.extra.insert("BWF:Originator".to_string(), orig);
+        report.general.extra.insert("BWF:OriginatorReference".to_string(), orig_ref);
+        report.general.extra.insert("BWF:TimeReference".to_string(), time_ref.to_string());
+
+        // BWF version 1/2 loudness metadata (offset 412..422)
+        if payload.len() >= 422 {
+            let loudness_val = i16::from_le_bytes([payload[412], payload[413]]) as f64 / 100.0;
+            let loudness_range = i16::from_le_bytes([payload[414], payload[415]]) as f64 / 100.0;
+            let max_true_peak = i16::from_le_bytes([payload[416], payload[417]]) as f64 / 100.0;
+            let max_momentary = i16::from_le_bytes([payload[418], payload[419]]) as f64 / 100.0;
+            let max_short_term = i16::from_le_bytes([payload[420], payload[421]]) as f64 / 100.0;
+
+            if loudness_val != 0.0 {
+                report.general.extra.insert("EBU R128:IntegratedLoudness".to_string(), format!("{:.2} LUFS", loudness_val));
+            }
+            if loudness_range != 0.0 {
+                report.general.extra.insert("EBU R128:LoudnessRange".to_string(), format!("{:.2} LU", loudness_range));
+            }
+            if max_true_peak != 0.0 {
+                report.general.extra.insert("EBU R128:MaxTruePeak".to_string(), format!("{:.2} dBFS", max_true_peak));
+            }
+            if max_momentary != 0.0 {
+                report.general.extra.insert("EBU R128:MaxMomentaryLoudness".to_string(), format!("{:.2} LUFS", max_momentary));
+            }
+            if max_short_term != 0.0 {
+                report.general.extra.insert("EBU R128:MaxShortTermLoudness".to_string(), format!("{:.2} LUFS", max_short_term));
+            }
+        }
+    }
+
+    fn parse_ixml_chunk(payload: &[u8], report: &mut MediaReport) {
+        let xml_str = String::from_utf8_lossy(payload);
+        // Extract simple tags via pattern search without bulky XML parser
+        let extract_tag = |tag: &str| -> Option<String> {
+            let open = format!("<{}>", tag);
+            let close = format!("</{}>", tag);
+            if let (Some(start), Some(end)) = (xml_str.find(&open), xml_str.find(&close)) {
+                let val = &xml_str[start + open.len()..end].trim();
+                if !val.is_empty() {
+                    return Some(val.to_string());
+                }
+            }
+            None
+        };
+
+        if let Some(project) = extract_tag("PROJECT") {
+            report.general.extra.insert("iXML:Project".to_string(), project);
+        }
+        if let Some(scene) = extract_tag("SCENE") {
+            report.general.extra.insert("iXML:Scene".to_string(), scene);
+        }
+        if let Some(take) = extract_tag("TAKE") {
+            report.general.extra.insert("iXML:Take".to_string(), take);
+        }
+        if let Some(tape) = extract_tag("TAPE") {
+            report.general.extra.insert("iXML:Tape".to_string(), tape);
+        }
+        if let Some(notes) = extract_tag("NOTE") {
+            report.general.extra.insert("iXML:Notes".to_string(), notes);
         }
     }
 }

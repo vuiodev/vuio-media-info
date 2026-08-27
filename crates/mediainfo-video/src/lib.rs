@@ -1,16 +1,20 @@
 pub mod av1;
 pub mod avc;
+pub mod cineform;
 pub mod hevc;
 pub mod mpeg2;
 pub mod prores;
 pub mod vp9;
+pub mod vvc;
 
 pub use av1::Av1SequenceHeader;
 pub use avc::AvcSps;
+pub use cineform::CineFormHeader;
 pub use hevc::{DolbyVisionRpuParser, HevcSps};
 pub use mpeg2::Mpeg2SequenceHeader;
 pub use prores::ProResHeader;
 pub use vp9::Vp9Header;
+pub use vvc::VvcSps;
 
 #[cfg(test)]
 mod tests {

@@ -58,54 +58,99 @@ impl Id3v2Tag {
             ..Default::default()
         };
 
-        while offset + 10 <= total_size {
-            let frame_id = &data[offset..offset + 4];
-            if frame_id[0] == 0 {
-                break;
-            }
-
-            let frame_size = if major_ver == 4 {
-                ((data[offset + 4] as usize & 0x7F) << 21)
-                    | ((data[offset + 5] as usize & 0x7F) << 14)
-                    | ((data[offset + 6] as usize & 0x7F) << 7)
-                    | (data[offset + 7] as usize & 0x7F)
-            } else {
-                u32::from_be_bytes([
-                    data[offset + 4],
-                    data[offset + 5],
-                    data[offset + 6],
-                    data[offset + 7],
-                ]) as usize
-            };
-
-            offset += 10;
-            if offset + frame_size > total_size {
-                break;
-            }
-
-            let frame_data = &data[offset..offset + frame_size];
-            offset += frame_size;
-
-            let frame_id_str = String::from_utf8_lossy(frame_id);
-
-            match frame_id_str.as_ref() {
-                "TIT2" | "TT2" => tag.title = Self::decode_text_frame(frame_data),
-                "TPE1" | "TP1" => tag.artist = Self::decode_text_frame(frame_data),
-                "TALB" | "TAL" => tag.album = Self::decode_text_frame(frame_data),
-                "TYER" | "TDRC" | "TYE" => tag.date = Self::decode_text_frame(frame_data),
-                "TRCK" | "TRK" => tag.track = Self::decode_text_frame(frame_data),
-                "TCON" | "TCO" => tag.genre = Self::decode_text_frame(frame_data),
-                "TSSE" | "TSS" => tag.encoder = Self::decode_text_frame(frame_data),
-                "APIC" | "PIC" => {
-                    if let Some((mime, img)) = Self::decode_apic_frame(frame_data) {
-                        tag.cover_mime = Some(mime);
-                        tag.cover_data = Some(img);
-                    }
+        while offset < parse_limit {
+            if major_ver == 2 {
+                // ID3v2.2: 3-byte frame ID + 3-byte frame size (6-byte header)
+                if offset + 6 > parse_limit {
+                    break;
                 }
-                _ => {
-                    if frame_id_str.starts_with('T') {
-                        if let Some(val) = Self::decode_text_frame(frame_data) {
-                            tag.extra.insert(frame_id_str.to_string(), val);
+                let frame_id = &data[offset..offset + 3];
+                if frame_id[0] == 0 {
+                    break;
+                }
+                let frame_size = ((data[offset + 3] as usize) << 16)
+                    | ((data[offset + 4] as usize) << 8)
+                    | (data[offset + 5] as usize);
+                offset += 6;
+                if offset + frame_size > parse_limit {
+                    break;
+                }
+                let frame_data = &data[offset..offset + frame_size];
+                offset += frame_size;
+
+                let frame_id_str = String::from_utf8_lossy(frame_id);
+                match frame_id_str.as_ref() {
+                    "TT2" => tag.title = Self::decode_text_frame(frame_data),
+                    "TP1" => tag.artist = Self::decode_text_frame(frame_data),
+                    "TAL" => tag.album = Self::decode_text_frame(frame_data),
+                    "TYE" => tag.date = Self::decode_text_frame(frame_data),
+                    "TRK" => tag.track = Self::decode_text_frame(frame_data),
+                    "TCO" => tag.genre = Self::decode_text_frame(frame_data),
+                    "TSS" => tag.encoder = Self::decode_text_frame(frame_data),
+                    "PIC" => {
+                        if let Some((mime, img)) = Self::decode_apic_frame(frame_data) {
+                            tag.cover_mime = Some(mime);
+                            tag.cover_data = Some(img);
+                        }
+                    }
+                    _ => {}
+                }
+            } else {
+                // ID3v2.3 and ID3v2.4: 4-byte frame ID + 4-byte size + 2-byte flags (10-byte header)
+                if offset + 10 > parse_limit {
+                    break;
+                }
+                let frame_id = &data[offset..offset + 4];
+                if frame_id[0] == 0 {
+                    break;
+                }
+
+                let frame_size = if major_ver == 4 {
+                    ((data[offset + 4] as usize & 0x7F) << 21)
+                        | ((data[offset + 5] as usize & 0x7F) << 14)
+                        | ((data[offset + 6] as usize & 0x7F) << 7)
+                        | (data[offset + 7] as usize & 0x7F)
+                } else {
+                    u32::from_be_bytes([
+                        data[offset + 4],
+                        data[offset + 5],
+                        data[offset + 6],
+                        data[offset + 7],
+                    ]) as usize
+                };
+
+                offset += 10;
+                if offset + frame_size > parse_limit {
+                    break;
+                }
+
+                let frame_data = &data[offset..offset + frame_size];
+                offset += frame_size;
+
+                let frame_id_str = String::from_utf8_lossy(frame_id);
+
+                match frame_id_str.as_ref() {
+                    "TIT2" => tag.title = Self::decode_text_frame(frame_data),
+                    "TPE1" => tag.artist = Self::decode_text_frame(frame_data),
+                    "TALB" => tag.album = Self::decode_text_frame(frame_data),
+                    "TYER" | "TDRC" => tag.date = Self::decode_text_frame(frame_data),
+                    "TRCK" => tag.track = Self::decode_text_frame(frame_data),
+                    "TCON" => tag.genre = Self::decode_text_frame(frame_data),
+                    "TSSE" => tag.encoder = Self::decode_text_frame(frame_data),
+                    "TXXX" => {
+                        Self::decode_txxx_frame(frame_data, &mut tag);
+                    }
+                    "APIC" => {
+                        if let Some((mime, img)) = Self::decode_apic_frame(frame_data) {
+                            tag.cover_mime = Some(mime);
+                            tag.cover_data = Some(img);
+                        }
+                    }
+                    _ => {
+                        if frame_id_str.starts_with('T') {
+                            if let Some(val) = Self::decode_text_frame(frame_data) {
+                                tag.extra.insert(frame_id_str.to_string(), val);
+                            }
                         }
                     }
                 }
@@ -192,6 +237,20 @@ impl Id3v2Tag {
             Some((mime, img_data))
         } else {
             None
+        }
+    }
+
+    fn decode_txxx_frame(data: &[u8], tag: &mut Id3v2Tag) {
+        if data.len() < 2 {
+            return;
+        }
+        let payload = &data[1..];
+        if let Some(pos) = payload.iter().position(|&b| b == 0) {
+            let desc = String::from_utf8_lossy(&payload[0..pos]).trim().to_string();
+            let val = String::from_utf8_lossy(&payload[pos + 1..]).trim_matches(|c: char| c == '\0' || c.is_whitespace()).to_string();
+            if !desc.is_empty() && !val.is_empty() {
+                tag.extra.insert(format!("TXXX:{}", desc), val);
+            }
         }
     }
 }

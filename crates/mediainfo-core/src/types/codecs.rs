@@ -21,6 +21,20 @@ pub enum ContainerFormat {
     AC3,
     DTS,
     MPC,
+    CAF,
+    DSF,
+    DSDIFF,
+    APE,
+    WavPack,
+    AIFF,
+    TrueAudio,
+    IVF,
+    Y4M,
+    AMR,
+    SRT,
+    ASS,
+    WebVTT,
+    SUP,
     Unknown,
 }
 
@@ -45,6 +59,20 @@ impl ContainerFormat {
             Self::AC3 => "AC-3",
             Self::DTS => "DTS",
             Self::MPC => "Musepack",
+            Self::CAF => "CoreAudio Format",
+            Self::DSF => "Direct Stream Digital",
+            Self::DSDIFF => "DSDIFF",
+            Self::APE => "Monkey's Audio",
+            Self::WavPack => "WavPack",
+            Self::AIFF => "AIFF",
+            Self::TrueAudio => "TrueAudio",
+            Self::IVF => "IVF",
+            Self::Y4M => "YUV4MPEG2",
+            Self::AMR => "AMR",
+            Self::SRT => "SubRip Subtitle",
+            Self::ASS => "SubStation Alpha Subtitle",
+            Self::WebVTT => "WebVTT Subtitle",
+            Self::SUP => "Blu-ray PGS Subtitle",
             Self::Unknown => "Unknown",
         }
     }
@@ -70,6 +98,20 @@ impl ContainerFormat {
             Self::AC3 => &["ac3", "eac3", "ec3"],
             Self::DTS => &["dts", "dtshd", "dtsx"],
             Self::MPC => &["mpc", "mp+"],
+            Self::CAF => &["caf"],
+            Self::DSF => &["dsf"],
+            Self::DSDIFF => &["dff"],
+            Self::APE => &["ape"],
+            Self::WavPack => &["wv", "wvc"],
+            Self::AIFF => &["aif", "aiff", "aifc"],
+            Self::TrueAudio => &["tta"],
+            Self::IVF => &["ivf"],
+            Self::Y4M => &["y4m"],
+            Self::AMR => &["amr", "awb"],
+            Self::SRT => &["srt"],
+            Self::ASS => &["ass", "ssa"],
+            Self::WebVTT => &["vtt"],
+            Self::SUP => &["sup"],
             Self::Unknown => &[],
         }
     }
@@ -93,6 +135,20 @@ impl ContainerFormat {
             "ac3", "eac3", "ec3",
             "dts", "dtshd", "dtsx",
             "mpc", "mp+",
+            "caf",
+            "dsf",
+            "dff",
+            "ape",
+            "wv", "wvc",
+            "aif", "aiff", "aifc",
+            "tta",
+            "ivf",
+            "y4m",
+            "amr", "awb",
+            "srt",
+            "ass", "ssa",
+            "vtt",
+            "sup",
         ]
     }
 
@@ -114,9 +170,12 @@ pub enum VideoCodec {
     VP9,       // Google VP9
     VP8,       // Google VP8
     ProRes,    // Apple ProRes
+    MPEG1Video,// MPEG-1 Video
     MPEG2Video,// MPEG-2 Video
     MPEG4Visual,// MPEG-4 Part 2
     VC1,       // SMPTE 421M
+    VVC,       // H.266
+    CineForm,  // GoPro CineForm (SMPTE ST 2073)
     Theora,
     DV,
     DNxHD,
@@ -134,9 +193,12 @@ impl VideoCodec {
             Self::VP9 => "VP9",
             Self::VP8 => "VP8",
             Self::ProRes => "ProRes",
+            Self::MPEG1Video => "MPEG-1 Video",
             Self::MPEG2Video => "MPEG Video",
             Self::MPEG4Visual => "MPEG-4 Visual",
             Self::VC1 => "VC-1",
+            Self::VVC => "VVC",
+            Self::CineForm => "CineForm",
             Self::Theora => "Theora",
             Self::DV => "DV",
             Self::DNxHD => "DNxHD",
@@ -154,9 +216,12 @@ impl VideoCodec {
             Self::VP9 => "VP9",
             Self::VP8 => "VP8",
             Self::ProRes => "Apple ProRes",
+            Self::MPEG1Video => "MPEG-1 Video",
             Self::MPEG2Video => "MPEG-2 Video",
             Self::MPEG4Visual => "MPEG-4 Part 2 Visual",
             Self::VC1 => "SMPTE 421M (VC-1)",
+            Self::VVC => "Versatile Video Coding (H.266)",
+            Self::CineForm => "GoPro CineForm HD (SMPTE ST 2073)",
             Self::Theora => "Theora",
             Self::DV => "Digital Video",
             Self::DNxHD => "Avid DNxHD",
@@ -169,6 +234,7 @@ impl VideoCodec {
 
 /// Known Audio elementary stream codecs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[allow(non_camel_case_types)]
 pub enum AudioCodec {
     AAC,
     AC3,
@@ -189,6 +255,12 @@ pub enum AudioCodec {
     MonkeyAudio, // APE
     WavPack,
     MPC,
+    DSD,
+    AC4,
+    MPEGH,
+    AMR_NB,
+    AMR_WB,
+    TTA,
     Other(String),
 }
 
@@ -214,6 +286,12 @@ impl AudioCodec {
             Self::MonkeyAudio => "Monkey's Audio",
             Self::WavPack => "WavPack",
             Self::MPC => "Musepack",
+            Self::DSD => "DSD",
+            Self::AC4 => "AC-4",
+            Self::MPEGH => "MPEG-H 3D Audio",
+            Self::AMR_NB => "AMR-NB",
+            Self::AMR_WB => "AMR-WB",
+            Self::TTA => "TrueAudio",
             Self::Other(name) => name.as_str(),
         }
     }
@@ -226,6 +304,7 @@ impl AudioCodec {
             Self::MPEGAudioLayer1 => Some("Layer 1"),
             Self::TrueHD => Some("Dolby TrueHD"),
             Self::DTSHD => Some("Master Audio / High Resolution"),
+            Self::AC4 => Some("Dolby AC-4"),
             _ => None,
         }
     }

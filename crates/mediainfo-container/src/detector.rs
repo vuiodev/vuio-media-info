@@ -123,6 +123,80 @@ impl FormatDetector {
             return ContainerFormat::ASF;
         }
 
+        // Apple CoreAudio Format (CAF): "caff"
+        if prefix.starts_with(b"caff") {
+            return ContainerFormat::CAF;
+        }
+
+        // Direct Stream Digital (DSF): "DSD "
+        if prefix.starts_with(b"DSD ") {
+            return ContainerFormat::DSF;
+        }
+
+        // Direct Stream Digital (DSDIFF): "FRM8" + "DSD "
+        if prefix.starts_with(b"FRM8") && prefix.len() >= 12 && &prefix[8..12] == b"DSD " {
+            return ContainerFormat::DSDIFF;
+        }
+
+        // AIFF / AIFF-C: "FORM" + "AIFF" / "AIFC"
+        if prefix.starts_with(b"FORM") && prefix.len() >= 12 {
+            let form_type = &prefix[8..12];
+            if form_type == b"AIFF" || form_type == b"AIFC" {
+                return ContainerFormat::AIFF;
+            }
+        }
+
+        // Monkey's Audio (APE): "MAC "
+        if prefix.starts_with(b"MAC ") {
+            return ContainerFormat::APE;
+        }
+
+        // WavPack: "wvpk"
+        if prefix.starts_with(b"wvpk") {
+            return ContainerFormat::WavPack;
+        }
+
+        // TrueAudio: "TTA1"
+        if prefix.starts_with(b"TTA1") {
+            return ContainerFormat::TrueAudio;
+        }
+
+        // IVF (VP8 / VP9 / AV1): "DKIF"
+        if prefix.starts_with(b"DKIF") {
+            return ContainerFormat::IVF;
+        }
+
+        // YUV4MPEG2: "YUV4MPEG2"
+        if prefix.starts_with(b"YUV4MPEG2") {
+            return ContainerFormat::Y4M;
+        }
+
+        // AMR: "#!AMR\n" or "#!AMR-WB\n"
+        if prefix.starts_with(b"#!AMR\n") || prefix.starts_with(b"#!AMR-WB\n") {
+            return ContainerFormat::AMR;
+        }
+
+        // WebVTT Subtitle: "WEBVTT"
+        if prefix.starts_with(b"WEBVTT") || prefix.starts_with(b"\xEF\xBB\xBFWEBVTT") {
+            return ContainerFormat::WebVTT;
+        }
+
+        // SubStation Alpha (ASS/SSA): "[Script Info]" or "[V4+ Styles]"
+        if prefix.starts_with(b"[Script Info]") || prefix.starts_with(b"\xEF\xBB\xBF[Script Info]") || prefix.starts_with(b"[V4+ Styles]") {
+            return ContainerFormat::ASS;
+        }
+
+        // Bluray SUP (Presentation Graphic Stream): "PG" (0x50, 0x47)
+        if prefix.starts_with(&[0x50, 0x47]) {
+            return ContainerFormat::SUP;
+        }
+
+        // SubRip (.srt): begins with digits and newline followed by timestamp arrow "-->"
+        let srt_window = &prefix[0..prefix.len().min(256)];
+        if srt_window.windows(3).any(|w| w == b"-->") {
+            return ContainerFormat::SRT;
+        }
+
         ContainerFormat::Unknown
     }
 }

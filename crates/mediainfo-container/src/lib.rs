@@ -1,24 +1,42 @@
+pub mod aiff;
+pub mod ape_container;
 pub mod asf;
+pub mod caf;
 pub mod detector;
+pub mod dsd;
 pub mod flv;
 pub mod isobmff;
+pub mod ivf;
 pub mod matroska;
 pub mod mpeg_ts;
 pub mod mxf;
 pub mod ogg;
 pub mod riff;
+pub mod subtitles;
+pub mod tta;
+pub mod wavpack;
+pub mod y4m;
 
+pub use aiff::AiffDemuxer;
+pub use ape_container::ApeContainerDemuxer;
 pub use asf::AsfDemuxer;
+pub use caf::CafDemuxer;
 pub use detector::FormatDetector;
+pub use dsd::DsdDemuxer;
 pub use flv::FlvDemuxer;
 pub use isobmff::IsobmffDemuxer;
+pub use ivf::IvfDemuxer;
 pub use matroska::MatroskaDemuxer;
 pub use mpeg_ts::MpegTsDemuxer;
 pub use mxf::MxfDemuxer;
 pub use ogg::OggDemuxer;
 pub use riff::RiffDemuxer;
+pub use subtitles::SubtitleDemuxer;
+pub use tta::TtaDemuxer;
+pub use wavpack::WavpackDemuxer;
+pub use y4m::Y4mDemuxer;
 
-use mediainfo_audio::{AacInfo, Ac3Header, DtsHeader, FlacStreamInfo, MpegaHeader};
+use mediainfo_audio::{AacInfo, Ac3Header, AmrInfo, DtsHeader, FlacStreamInfo, MpegaHeader};
 use mediainfo_core::{
     error::{MediaInfoError, Result},
     models::*,
@@ -57,6 +75,36 @@ impl ContainerParser {
             }
             ContainerFormat::MXF => {
                 MxfDemuxer::parse_buffer(buffer)
+            }
+            ContainerFormat::CAF => {
+                CafDemuxer::parse_buffer(buffer)
+            }
+            ContainerFormat::DSF | ContainerFormat::DSDIFF => {
+                DsdDemuxer::parse_buffer(buffer)
+            }
+            ContainerFormat::APE => {
+                ApeContainerDemuxer::parse_buffer(buffer)
+            }
+            ContainerFormat::WavPack => {
+                WavpackDemuxer::parse_buffer(buffer)
+            }
+            ContainerFormat::AIFF => {
+                AiffDemuxer::parse_buffer(buffer)
+            }
+            ContainerFormat::TrueAudio => {
+                TtaDemuxer::parse_buffer(buffer)
+            }
+            ContainerFormat::IVF => {
+                IvfDemuxer::parse_buffer(buffer)
+            }
+            ContainerFormat::Y4M => {
+                Y4mDemuxer::parse_buffer(buffer)
+            }
+            ContainerFormat::AMR => {
+                Self::parse_amr_stream(buffer)
+            }
+            ContainerFormat::SRT | ContainerFormat::ASS | ContainerFormat::WebVTT | ContainerFormat::SUP => {
+                SubtitleDemuxer::parse_buffer(buffer, format)
             }
             ContainerFormat::FLAC => {
                 Self::parse_flac_stream(buffer)
@@ -365,6 +413,28 @@ impl ContainerParser {
                 report.general.cover_mime = ape.cover_mime;
             }
         }
+
+        report.audios.push(a);
+        Ok(report)
+    }
+
+    fn parse_amr_stream(data: &[u8]) -> Result<MediaReport> {
+        let amr = AmrInfo::parse(data)?;
+        let mut report = MediaReport::new();
+        report.general.format = ContainerFormat::AMR;
+        report.general.file_size = data.len() as u64;
+        report.general.duration_ms = amr.duration_ms;
+        report.general.overall_bitrate = amr.bit_rate;
+
+        let mut a = AudioTrack::default();
+        a.format = if amr.is_wideband { AudioCodec::AMR_WB } else { AudioCodec::AMR_NB };
+        a.format_info = Some(amr.format_profile);
+        a.channels = amr.channels;
+        a.sampling_rate = amr.sample_rate;
+        a.bit_depth = Some(amr.bit_depth);
+        a.duration_ms = amr.duration_ms;
+        a.bit_rate = amr.bit_rate;
+        a.channel_layout = Some(AudioChannelLayout::Mono);
 
         report.audios.push(a);
         Ok(report)

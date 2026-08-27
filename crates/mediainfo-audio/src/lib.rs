@@ -1,18 +1,28 @@
 pub mod aac;
 pub mod ac3;
+pub mod ac4;
+pub mod alac;
+pub mod amr;
 pub mod dts;
 pub mod flac;
 pub mod mpega;
+pub mod mpegh;
 pub mod opus;
 pub mod pcm;
+pub mod truehd;
 
 pub use aac::AacInfo;
 pub use ac3::Ac3Header;
+pub use ac4::Ac4Header;
+pub use alac::AlacSpecificConfig;
+pub use amr::AmrInfo;
 pub use dts::DtsHeader;
 pub use flac::FlacStreamInfo;
 pub use mpega::MpegaHeader;
+pub use mpegh::MpegHHeader;
 pub use opus::OpusHead;
 pub use pcm::PcmInfo;
+pub use truehd::TrueHdHeader;
 
 #[cfg(test)]
 mod tests {

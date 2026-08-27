@@ -73,19 +73,69 @@ impl Mpeg2SequenceHeader {
 
         let bit_rate = bit_rate_value as u64 * 400;
 
-        // Check for sequence extension (0x000001B5)
-        let is_mpeg2 = data.windows(4).any(|w| w == [0x00, 0x00, 0x01, 0xB5]);
+        let mut width = width_val;
+        let mut height = height_val;
+        let mut chroma_subsampling = ChromaSubsampling::YUV420;
+        let mut is_mpeg2 = false;
+        let mut _is_progressive = false;
+        let mut profile_and_level = None;
+
+        // Search for Sequence Extension (0x000001B5)
+        if let Some(ext_idx) = data.windows(4).position(|w| w == [0x00, 0x00, 0x01, 0xB5]) {
+            if ext_idx + 10 <= data.len() {
+                let ext_data = &data[ext_idx + 4..];
+                if let Ok(mut er) = MsbBitReader::new(ext_data).read_bits(4).map(|id| (id, MsbBitReader::new(&ext_data[1..]))) {
+                    if er.0 == 1 {
+                        // Sequence Extension ID = 1
+                        is_mpeg2 = true;
+                        if let Ok(profile_and_level_code) = er.1.read_bits(8) {
+                            let profile = match (profile_and_level_code >> 4) & 0x07 {
+                                1 => "High",
+                                2 => "Spatially Scalable",
+                                3 => "SNR Scalable",
+                                4 => "Main",
+                                5 => "Simple",
+                                _ => "Main",
+                            };
+                            let level = match profile_and_level_code & 0x0F {
+                                4 => "High",
+                                6 => "High 1440",
+                                8 => "Main",
+                                10 => "Low",
+                                _ => "Main",
+                            };
+                            profile_and_level = Some(format!("{}@{}", profile, level));
+                        }
+                        if let Ok(prog) = er.1.read_bit() {
+                            _is_progressive = prog;
+                        }
+                        if let Ok(chroma_format) = er.1.read_bits(2) {
+                            chroma_subsampling = match chroma_format {
+                                1 => ChromaSubsampling::YUV420,
+                                2 => ChromaSubsampling::YUV422,
+                                3 => ChromaSubsampling::YUV444,
+                                _ => ChromaSubsampling::YUV420,
+                            };
+                        }
+                        if let (Ok(h_ext), Ok(v_ext)) = (er.1.read_bits(2), er.1.read_bits(2)) {
+                            width |= h_ext << 12;
+                            height |= v_ext << 12;
+                        }
+                    }
+                }
+            }
+        }
 
         Ok(Self {
-            width: width_val,
-            height: height_val,
+            width,
+            height,
             aspect_ratio_info,
             frame_rate,
             bit_rate,
-            chroma_subsampling: ChromaSubsampling::YUV420,
+            chroma_subsampling,
             is_mpeg2,
             profile_and_level: if is_mpeg2 {
-                Some("Main@Main".to_string())
+                profile_and_level.or(Some("Main@Main".to_string()))
             } else {
                 None
             },

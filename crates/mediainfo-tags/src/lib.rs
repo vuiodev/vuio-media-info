@@ -4,6 +4,7 @@ pub mod id3v1;
 pub mod id3v2;
 pub mod itunes;
 pub mod vorbis;
+pub mod xmp;
 
 pub use ape::ApeTag;
 pub use exif::ExifTags;
@@ -11,6 +12,7 @@ pub use id3v1::Id3v1Tag;
 pub use id3v2::Id3v2Tag;
 pub use itunes::ItunesTags;
 pub use vorbis::VorbisComments;
+pub use xmp::XmpTag;
 
 #[cfg(test)]
 mod tests {
