@@ -112,11 +112,7 @@ impl Av1SequenceHeader {
         let high_bitdepth = r.read_bit()?;
         let bit_depth = if seq_profile == 2 && high_bitdepth {
             let twelve_bit = r.read_bit()?;
-            if twelve_bit {
-                12
-            } else {
-                10
-            }
+            if twelve_bit { 12 } else { 10 }
         } else if high_bitdepth {
             10
         } else {

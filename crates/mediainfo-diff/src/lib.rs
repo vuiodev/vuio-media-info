@@ -1,3 +1,5 @@
+#![allow(clippy::collapsible_if, clippy::collapsible_match)]
+
 use mediainfo_container::ContainerParser;
 use mediainfo_core::{error::Result, models::MediaReport};
 use std::path::Path;

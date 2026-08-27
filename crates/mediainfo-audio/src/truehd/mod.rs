@@ -49,7 +49,7 @@ impl TrueHdHeader {
             None => {
                 return Err(MediaInfoError::InvalidData(
                     "TrueHD/MLP Major Sync not found".to_string(),
-                ))
+                ));
             }
         };
 

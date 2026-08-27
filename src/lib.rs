@@ -38,11 +38,12 @@ impl MediaInfo {
                     || rep.general.duration_ms.is_some() =>
             {
                 rep.general.file_size = file_len;
-                if let Some(dur_ms) = rep.general.duration_ms {
-                    if dur_ms > 0.0 && file_len > 0 {
-                        rep.general.overall_bitrate =
-                            Some(((file_len as f64 * 8.0) / (dur_ms / 1000.0)) as u64);
-                    }
+                if let Some(dur_ms) = rep.general.duration_ms
+                    && dur_ms > 0.0
+                    && file_len > 0
+                {
+                    rep.general.overall_bitrate =
+                        Some(((file_len as f64 * 8.0) / (dur_ms / 1000.0)) as u64);
                 }
                 rep
             }
@@ -51,21 +52,22 @@ impl MediaInfo {
                 let mmap = unsafe { memmap2::Mmap::map(&file)? };
                 let mut rep = ContainerParser::parse(&mmap)?;
                 rep.general.file_size = file_len;
-                if let Some(dur_ms) = rep.general.duration_ms {
-                    if dur_ms > 0.0 && file_len > 0 {
-                        rep.general.overall_bitrate =
-                            Some(((file_len as f64 * 8.0) / (dur_ms / 1000.0)) as u64);
-                    }
+                if let Some(dur_ms) = rep.general.duration_ms
+                    && dur_ms > 0.0
+                    && file_len > 0
+                {
+                    rep.general.overall_bitrate =
+                        Some(((file_len as f64 * 8.0) / (dur_ms / 1000.0)) as u64);
                 }
                 rep
             }
         };
 
         report.general.file_path = Some(path_ref.to_string_lossy().to_string());
-        if report.general.file_name.is_none() {
-            if let Some(file_name) = path_ref.file_name() {
-                report.general.file_name = Some(file_name.to_string_lossy().to_string());
-            }
+        if report.general.file_name.is_none()
+            && let Some(file_name) = path_ref.file_name()
+        {
+            report.general.file_name = Some(file_name.to_string_lossy().to_string());
         }
 
         Ok(report)

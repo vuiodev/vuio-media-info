@@ -1,3 +1,5 @@
+#![allow(clippy::collapsible_if, clippy::collapsible_match)]
+
 pub mod ape;
 pub mod exif;
 pub mod id3v1;

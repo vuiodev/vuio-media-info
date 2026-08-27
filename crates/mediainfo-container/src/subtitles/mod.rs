@@ -23,7 +23,7 @@ impl SubtitleDemuxer {
             _ => {
                 return Err(MediaInfoError::InvalidData(
                     "Unsupported subtitle container".to_string(),
-                ))
+                ));
             }
         }
 

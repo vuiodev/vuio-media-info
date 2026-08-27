@@ -1,5 +1,5 @@
 use mediainfo_core::{
-    bitstream::{unescape_nal_unit, MsbBitReader},
+    bitstream::{MsbBitReader, unescape_nal_unit},
     error::{MediaInfoError, Result},
     types::*,
 };

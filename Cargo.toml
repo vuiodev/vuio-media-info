@@ -17,7 +17,7 @@ resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 rust-version = "1.97.0"
 authors = ["vuio-media-info Contributors"]
 license = "MIT OR Apache-2.0"
@@ -48,14 +48,14 @@ rayon = "1.12"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 colored = "3.1"
-memchr = "2.7"
+memchr = "2.8"
 jwalk = "0.9"
 
 # Tauri v2 Ecosystem (Latest)
-tauri = { version = "2.3", features = [] }
-tauri-build = { version = "2.0", features = [] }
-tauri-plugin-dialog = "2.2"
-tauri-plugin-fs = "2.2"
+tauri = { version = "2.11", features = [] }
+tauri-build = { version = "2.6", features = [] }
+tauri-plugin-dialog = "2.7"
+tauri-plugin-fs = "2.5"
 window-vibrancy = "0.5"
 
 [package]

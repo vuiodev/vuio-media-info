@@ -115,7 +115,7 @@ mod tests {
         data[0..4].copy_from_slice(&WAVPACK_MAGIC);
         data[8..10].copy_from_slice(&0x0410u16.to_le_bytes()); // v4.16
         data[12..16].copy_from_slice(&441000u32.to_le_bytes()); // 10 seconds at 44.1kHz
-                                                                // flags: bytes_per_sample = 2 (16-bit, value 1), stereo (0), sr_idx = 9 (44100, 9 << 23)
+        // flags: bytes_per_sample = 2 (16-bit, value 1), stereo (0), sr_idx = 9 (44100, 9 << 23)
         let flags: u32 = 1 | (9 << 23);
         data[24..28].copy_from_slice(&flags.to_le_bytes());
 

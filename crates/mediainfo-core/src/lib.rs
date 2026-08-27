@@ -4,7 +4,7 @@ pub mod models;
 pub mod traits;
 pub mod types;
 
-pub use bitstream::{unescape_nal_unit, EbmlVint, LsbBitReader, MsbBitReader};
+pub use bitstream::{EbmlVint, LsbBitReader, MsbBitReader, unescape_nal_unit};
 pub use error::{MediaInfoError, Result};
 pub use models::*;
 pub use traits::*;

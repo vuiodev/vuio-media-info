@@ -54,12 +54,11 @@ pub fn get_initial_files(state: tauri::State<CliState>) -> Vec<String> {
             {
                 if entry.file_type().is_file() {
                     let path = entry.path();
-                    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                        if ContainerFormat::is_supported_extension(ext) {
-                            if let Some(path_str) = path.to_str() {
-                                resolved_files.push(path_str.to_string());
-                            }
-                        }
+                    if let Some(ext) = path.extension().and_then(|e| e.to_str())
+                        && ContainerFormat::is_supported_extension(ext)
+                        && let Some(path_str) = path.to_str()
+                    {
+                        resolved_files.push(path_str.to_string());
                     }
                 }
             }
@@ -85,12 +84,11 @@ pub fn scan_folder(folder_path: String) -> Result<Vec<MediaReport>, String> {
         let entry = entry.map_err(|e| e.to_string())?;
         if entry.file_type().is_file() {
             let path = entry.path();
-            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                if ContainerFormat::is_supported_extension(ext) {
-                    if let Some(path_str) = path.to_str() {
-                        file_paths.push(path_str.to_string());
-                    }
-                }
+            if let Some(ext) = path.extension().and_then(|e| e.to_str())
+                && ContainerFormat::is_supported_extension(ext)
+                && let Some(path_str) = path.to_str()
+            {
+                file_paths.push(path_str.to_string());
             }
         }
     }

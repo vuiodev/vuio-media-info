@@ -105,10 +105,10 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: clippy-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock') }}
-      - name: Run Clippy (Linux: CLI & Libs)
+      - name: "Run Clippy on Linux (CLI & Libs)"
         if: runner.os == 'Linux'
         run: cargo clippy --workspace --exclude mediainfo-gui --all-targets --all-features -- -D clippy::all -D warnings
-      - name: Run Clippy (macOS & Windows: Full Workspace including GUI)
+      - name: "Run Clippy on macOS & Windows (Full Workspace including GUI)"
         if: runner.os != 'Linux'
         run: cargo clippy --workspace --all-targets --all-features -- -D clippy::all -D warnings
 
@@ -280,23 +280,23 @@ jobs:
             echo 'linker = "arm-linux-gnueabihf-gcc"' >> ~/.cargo/config.toml
           fi
 
-      - name: Build project (CLI + GUI)
+      - name: "Build project (CLI + GUI)"
         if: matrix.build_gui == true
         run: cargo build --workspace --target ${{ matrix.target }}
 
-      - name: Build project (CLI only)
+      - name: "Build project (CLI only)"
         if: matrix.build_gui == false && matrix.target != 'x86_64-unknown-freebsd'
         run: cargo build -p mediainfo --target ${{ matrix.target }}
 
-      - name: Run tests (Native GUI platforms)
+      - name: "Run tests (Native GUI platforms)"
         if: matrix.build_gui == true && matrix.target != 'aarch64-pc-windows-msvc'
         run: cargo test --workspace --target ${{ matrix.target }}
 
-      - name: Run tests (Native Linux CLI)
+      - name: "Run tests (Native Linux CLI)"
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: cargo test --workspace --exclude mediainfo-gui --target ${{ matrix.target }}
 
-      - name: Build and test in FreeBSD VM (CLI only)
+      - name: "Build and test in FreeBSD VM (CLI only)"
         if: matrix.target == 'x86_64-unknown-freebsd'
         uses: vmactions/freebsd-vm@v1
         with:
@@ -423,15 +423,15 @@ jobs:
             echo 'linker = "arm-linux-gnueabihf-gcc"' >> ~/.cargo/config.toml
           fi
 
-      - name: Build binary (Workspace release: CLI + GUI)
+      - name: "Build binary (Workspace release: CLI + GUI)"
         if: matrix.build_gui == true
         run: cargo build --release --workspace --target ${{ matrix.target }}
 
-      - name: Build binary (CLI only release)
+      - name: "Build binary (CLI only release)"
         if: matrix.build_gui == false && matrix.target != 'x86_64-unknown-freebsd'
         run: cargo build --release -p mediainfo --target ${{ matrix.target }}
 
-      - name: Build binary in FreeBSD VM (CLI only)
+      - name: "Build binary in FreeBSD VM (CLI only)"
         if: matrix.target == 'x86_64-unknown-freebsd'
         uses: vmactions/freebsd-vm@v1
         with:

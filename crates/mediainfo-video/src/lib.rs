@@ -1,3 +1,5 @@
+#![allow(clippy::collapsible_if, clippy::collapsible_match)]
+
 pub mod av1;
 pub mod avc;
 pub mod cineform;

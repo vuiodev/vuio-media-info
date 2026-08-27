@@ -147,10 +147,10 @@ impl Id3v2Tag {
                         }
                     }
                     _ => {
-                        if frame_id_str.starts_with('T') {
-                            if let Some(val) = Self::decode_text_frame(frame_data) {
-                                tag.extra.insert(frame_id_str.to_string(), val);
-                            }
+                        if frame_id_str.starts_with('T')
+                            && let Some(val) = Self::decode_text_frame(frame_data)
+                        {
+                            tag.extra.insert(frame_id_str.to_string(), val);
                         }
                     }
                 }

@@ -95,7 +95,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         // Multi-file batch processing
         if args.output == CliOutputFormat::Csv {
-            println!("File,Format,FileSize,Duration_ms,Video_Codec,Resolution,FrameRate,Audio_Codec,Audio_Channels,Audio_SamplingRate");
+            println!(
+                "File,Format,FileSize,Duration_ms,Video_Codec,Resolution,FrameRate,Audio_Codec,Audio_Channels,Audio_SamplingRate"
+            );
         }
 
         let process_file = |path: &PathBuf| -> Option<(PathBuf, MediaReport)> {

@@ -213,7 +213,7 @@ mod tests {
         data.extend_from_slice(&2i16.to_be_bytes()); // 2 channels
         data.extend_from_slice(&44100u32.to_be_bytes()); // 44100 sample frames (1 sec)
         data.extend_from_slice(&16i16.to_be_bytes()); // 16-bit
-                                                      // 80-bit float for 44100.0: expon = 16383 + 15 = 16398 (0x400E), mantissa = 44100 << 48 = 0xAC440000_00000000
+        // 80-bit float for 44100.0: expon = 16383 + 15 = 16398 (0x400E), mantissa = 44100 << 48 = 0xAC440000_00000000
         data.extend_from_slice(&[0x40, 0x0E, 0xAC, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
 
         let report = AiffDemuxer::parse_buffer(&data).unwrap();

@@ -4,7 +4,7 @@ use tauri::WebviewWindow;
 pub fn apply_native_theme(_window: &WebviewWindow) {
     #[cfg(target_os = "macos")]
     {
-        use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+        use window_vibrancy::{NSVisualEffectMaterial, apply_vibrancy};
         let _ = apply_vibrancy(
             _window,
             NSVisualEffectMaterial::Sidebar,
