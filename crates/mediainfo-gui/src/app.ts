@@ -5,13 +5,12 @@ import { MediaReport, ComparisonDiff } from "./types";
 import { renderSummaryView } from "./views/summary";
 import { renderTreeView } from "./views/tree";
 import { renderGridView } from "./views/grid";
-import { renderBitstreamView } from "./views/bitstream";
 import { renderRawView } from "./views/raw";
 import { renderDiffView } from "./views/diff";
 import { renderBatchView } from "./views/batch";
 
 export class MediaInfoApp {
-  private activeTab: "summary" | "tree" | "grid" | "bitstream" | "raw" | "diff" | "batch" = "summary";
+  private activeTab: "summary" | "tree" | "grid" | "raw" | "diff" | "batch" = "summary";
   private currentReport?: MediaReport;
   private currentRawFormat = "text";
   private rawContent = "";
@@ -91,7 +90,6 @@ export class MediaInfoApp {
         <div class="tab-pill ${this.activeTab === "summary" ? "active" : ""}" data-tab="summary">Dashboard</div>
         <div class="tab-pill ${this.activeTab === "tree" ? "active" : ""}" data-tab="tree">Tree View</div>
         <div class="tab-pill ${this.activeTab === "grid" ? "active" : ""}" data-tab="grid">Data Grid</div>
-        <div class="tab-pill ${this.activeTab === "bitstream" ? "active" : ""}" data-tab="bitstream">Bitstream</div>
         <div class="tab-pill ${this.activeTab === "raw" ? "active" : ""}" data-tab="raw">Raw Export</div>
         <div class="tab-pill ${this.activeTab === "diff" ? "active" : ""}" data-tab="diff">Compare</div>
         <div class="tab-pill ${this.activeTab === "batch" ? "active" : ""}" data-tab="batch">Batch (${this.batchReports.length})</div>
@@ -129,7 +127,6 @@ export class MediaInfoApp {
       case "summary": return renderSummaryView(this.currentReport);
       case "tree": return renderTreeView(this.currentReport, this.treeSearchQuery);
       case "grid": return renderGridView(this.currentReport, this.gridSearchQuery);
-      case "bitstream": return renderBitstreamView(this.currentReport);
       case "raw": return renderRawView(this.rawContent, this.currentRawFormat);
       default: return "";
     }
@@ -258,9 +255,16 @@ export class MediaInfoApp {
     window.addEventListener("keydown", (e) => {
       const cmd = e.metaKey || e.ctrlKey;
       if (cmd && e.key === "o") { e.preventDefault(); this.openFileDialog(); }
-      if (cmd && e.key >= "1" && e.key <= "7") {
+      if (cmd && e.key >= "1" && e.key <= "6") {
         e.preventDefault();
-        const tabs: any[] = ["summary", "tree", "grid", "bitstream", "raw", "diff", "batch"];
+        const tabs: ("summary" | "tree" | "grid" | "raw" | "diff" | "batch")[] = [
+          "summary",
+          "tree",
+          "grid",
+          "raw",
+          "diff",
+          "batch",
+        ];
         this.activeTab = tabs[parseInt(e.key, 10) - 1];
         this.renderShell();
       }
@@ -323,8 +327,6 @@ export class MediaInfoApp {
       const selected = await open({ directory: true, multiple: false });
       console.log("[app] folder dialog result:", selected);
       if (!selected || typeof selected !== "string") return;
-      // TODO: Enumerate media files in directory via backend command
-      // For now, treat the folder path as a single path (backend will handle it)
       this.showError("Folder batch scan not yet wired — please select individual files for now.");
     } catch (err) {
       console.error("[app] openFolderDialog error:", err);

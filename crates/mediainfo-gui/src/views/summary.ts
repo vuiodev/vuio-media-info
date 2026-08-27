@@ -45,8 +45,6 @@ function computedBitrate(fileSizeBytes: number, durationMs?: number): number | u
   return (fileSizeBytes * 8) / (durationMs / 1000);
 }
 
-
-
 // ── detail row component ───────────────────────────────────────────────────
 function row(key: string, val: string | undefined | null, highlight = false): string {
   if (!val || val === "—") return "";
@@ -72,7 +70,7 @@ function renderVideoItem(vt: VideoTrack, index: number, total: number): string {
   ].filter(Boolean).join(" · ");
 
   return `
-    <details class="track-card video-card" open>
+    <details class="track-card video-card">
       <summary class="track-summary">
         <div class="summary-left">
           <span class="disclosure-arrow">▶</span>
@@ -118,7 +116,7 @@ function renderAudioItem(at: AudioTrack, index: number): string {
   const summaryBadges = [ch, hz, br, lang].filter(Boolean).join(" · ");
 
   return `
-    <details class="track-card audio-card" open>
+    <details class="track-card audio-card">
       <summary class="track-summary">
         <div class="summary-left">
           <span class="disclosure-arrow">▶</span>
@@ -147,14 +145,14 @@ function renderAudioItem(at: AudioTrack, index: number): string {
 }
 
 // ── render Text / Subtitle Collapsible Item ────────────────────────────────
-function renderTextItem(tt: TextTrack, index: number, open = true): string {
+function renderTextItem(tt: TextTrack, index: number): string {
   const lang = tt.language ? tt.language.toUpperCase() : "";
   const forced = tt.forced_flag ? "Forced" : "";
   const def = tt.default_flag ? "Default" : "";
   const summaryBadges = [lang, tt.format, def, forced].filter(Boolean).join(" · ");
 
   return `
-    <details class="track-card text-card" ${open ? "open" : ""}>
+    <details class="track-card text-card">
       <summary class="track-summary">
         <div class="summary-left">
           <span class="disclosure-arrow">▶</span>
@@ -180,9 +178,9 @@ export function renderSummaryView(report: MediaReport): string {
   const gen = report.general;
   const overallBr = computedBitrate(gen.file_size, gen.duration_ms) ?? gen.overall_bitrate;
 
-  // General collapsible card
+  // General collapsible card (collapsed by default)
   const generalCard = `
-    <details class="track-card general-card" open>
+    <details class="track-card general-card">
       <summary class="track-summary">
         <div class="summary-left">
           <span class="disclosure-arrow">▶</span>
@@ -213,8 +211,8 @@ export function renderSummaryView(report: MediaReport): string {
   // Audio items
   const audioItems = report.audios.map((at, i) => renderAudioItem(at, i)).join("");
 
-  // Subtitle items (if more than 3, collapse the rest)
-  const textItems = report.texts.map((tt, i) => renderTextItem(tt, i, i < 3)).join("");
+  // Subtitle items
+  const textItems = report.texts.map((tt, i) => renderTextItem(tt, i)).join("");
 
   // Chapters
   let chapterItem = "";
@@ -245,14 +243,14 @@ export function renderSummaryView(report: MediaReport): string {
       .split-layout {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 12px;
+        gap: 10px;
         align-items: start;
         padding: 4px;
       }
       .col-panel {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
       }
       .col-section-header {
         display: flex;
