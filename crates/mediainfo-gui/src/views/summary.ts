@@ -108,7 +108,7 @@ function renderVideoItem(vt: VideoTrack, index: number, total: number): string {
 }
 
 // ── render Audio Collapsible Item ──────────────────────────────────────────
-function renderAudioItem(at: AudioTrack, index: number): string {
+function renderAudioItem(at: AudioTrack, index: number, openByDefault = false): string {
   const ch = at.channels ? `${at.channels} ch` : "";
   const hz = at.sampling_rate ? fmtHz(at.sampling_rate) : "";
   const br = at.bit_rate ? fmtBitrate(at.bit_rate) : "";
@@ -116,7 +116,7 @@ function renderAudioItem(at: AudioTrack, index: number): string {
   const summaryBadges = [ch, hz, br, lang].filter(Boolean).join(" · ");
 
   return `
-    <details class="track-card audio-card">
+    <details class="track-card audio-card" ${openByDefault ? "open" : ""}>
       <summary class="track-summary">
         <div class="summary-left">
           <span class="disclosure-arrow">▶</span>
@@ -177,10 +177,11 @@ function renderTextItem(tt: TextTrack, index: number): string {
 export function renderSummaryView(report: MediaReport): string {
   const gen = report.general;
   const overallBr = computedBitrate(gen.file_size, gen.duration_ms) ?? gen.overall_bitrate;
+  const isAudioOnly = report.videos.length === 0;
 
-  // General collapsible card (collapsed by default)
+  // General collapsible card (open for audio files, collapsed for video)
   const generalCard = `
-    <details class="track-card general-card">
+    <details class="track-card general-card" ${isAudioOnly ? "open" : ""}>
       <summary class="track-summary">
         <div class="summary-left">
           <span class="disclosure-arrow">▶</span>
@@ -197,19 +198,23 @@ export function renderSummaryView(report: MediaReport): string {
         ${row("File size", fmtSize(gen.file_size), true)}
         ${row("Duration", fmtDuration(gen.duration_ms), true)}
         ${row("Overall bitrate", fmtBitrate(overallBr), true)}
+        ${row("Title", gen.title, true)}
+        ${row("Artist", gen.artist, true)}
+        ${row("Album", gen.album)}
+        ${row("Track / Position", gen.track_position)}
+        ${row("Genre", gen.genre)}
+        ${row("Date", gen.recorded_date)}
         ${row("Writing app", gen.encoded_application)}
         ${row("Writing library", gen.encoded_library)}
-        ${row("Title", gen.title)}
-        ${row("Date", gen.recorded_date)}
         ${row("Cover art", gen.cover_art_present ? (gen.cover_mime || "Yes") : "")}
       </div>
     </details>`;
 
-  // Video items
+  // Video items (always collapsed by default)
   const videoItems = report.videos.map((vt, i) => renderVideoItem(vt, i, report.videos.length)).join("");
 
-  // Audio items
-  const audioItems = report.audios.map((at, i) => renderAudioItem(at, i)).join("");
+  // Audio items (open by default for audio files, collapsed for video)
+  const audioItems = report.audios.map((at, i) => renderAudioItem(at, i, isAudioOnly)).join("");
 
   // Subtitle items
   const textItems = report.texts.map((tt, i) => renderTextItem(tt, i)).join("");
@@ -237,6 +242,13 @@ export function renderSummaryView(report: MediaReport): string {
         </div>
       </details>`;
   }
+
+  const leftHeader = isAudioOnly ? "📁 General Information" : "📁 General & 🎬 Video";
+  const leftBadge = isAudioOnly ? `${gen.format}` : `${report.videos.length} stream${report.videos.length > 1 ? "s" : ""}`;
+  const rightHeader = isAudioOnly ? "🔊 Audio Stream" : "🔊 Audio & 💬 Subtitles";
+  const rightBadge = isAudioOnly
+    ? `${report.audios.length} track${report.audios.length > 1 ? "s" : ""}`
+    : `${report.audios.length} A / ${report.texts.length} S`;
 
   return `
     <style>
@@ -419,8 +431,8 @@ export function renderSummaryView(report: MediaReport): string {
       <!-- Left Column: General + Video -->
       <div class="col-panel">
         <div class="col-section-header">
-          <span>📁 General & 🎬 Video</span>
-          <span class="count-badge">${report.videos.length} stream${report.videos.length > 1 ? "s" : ""}</span>
+          <span>${leftHeader}</span>
+          <span class="count-badge">${leftBadge}</span>
         </div>
         ${generalCard}
         ${videoItems}
@@ -429,8 +441,8 @@ export function renderSummaryView(report: MediaReport): string {
       <!-- Right Column: Audio + Subtitles + Chapters -->
       <div class="col-panel">
         <div class="col-section-header">
-          <span>🔊 Audio & 💬 Subtitles</span>
-          <span class="count-badge">${report.audios.length} A / ${report.texts.length} S</span>
+          <span>${rightHeader}</span>
+          <span class="count-badge">${rightBadge}</span>
         </div>
         ${audioItems}
         ${textItems}
