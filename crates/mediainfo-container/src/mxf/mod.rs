@@ -277,7 +277,9 @@ impl MxfDemuxer {
                 0x3C01 | 0x3C02 if val.len() >= 2 => {
                     // CompanyName or ProductName (UTF-16BE)
                     let u16_slice: Vec<u16> = val
-                        .chunks_exact(2)
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
                         .map(|c| u16::from_be_bytes([c[0], c[1]]))
                         .take_while(|&c| c != 0)
                         .collect();

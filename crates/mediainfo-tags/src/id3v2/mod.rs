@@ -176,7 +176,7 @@ impl Id3v2Tag {
                 }
                 let mut u16_chars = Vec::new();
                 let is_be = payload[0] == 0xFE && payload[1] == 0xFF;
-                for chunk in payload[2..].chunks_exact(2) {
+                for chunk in payload[2..].as_chunks::<2>().0 {
                     let code = if is_be {
                         u16::from_be_bytes([chunk[0], chunk[1]])
                     } else {
@@ -191,7 +191,7 @@ impl Id3v2Tag {
             }
             2 => {
                 let mut u16_chars = Vec::new();
-                for chunk in payload.chunks_exact(2) {
+                for chunk in payload.as_chunks::<2>().0 {
                     let code = u16::from_be_bytes([chunk[0], chunk[1]]);
                     if code == 0 {
                         break;

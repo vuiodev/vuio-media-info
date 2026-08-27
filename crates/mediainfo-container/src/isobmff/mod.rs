@@ -112,7 +112,7 @@ impl IsobmffDemuxer {
         let minor_version = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
 
         let mut compat_brands = Vec::new();
-        for chunk in data[8..].chunks_exact(4) {
+        for chunk in data[8..].as_chunks::<4>().0 {
             let brand = String::from_utf8_lossy(chunk).trim().to_string();
             if !brand.is_empty() {
                 compat_brands.push(brand);

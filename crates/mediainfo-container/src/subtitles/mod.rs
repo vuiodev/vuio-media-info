@@ -252,13 +252,17 @@ impl SubtitleDemuxer {
             (String::from_utf8_lossy(&data[3..]).to_string(), "UTF-8 BOM")
         } else if data.starts_with(&[0xFF, 0xFE]) {
             let u16_chars: Vec<u16> = data[2..]
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|c| u16::from_le_bytes([c[0], c[1]]))
                 .collect();
             (String::from_utf16_lossy(&u16_chars), "UTF-16LE")
         } else if data.starts_with(&[0xFE, 0xFF]) {
             let u16_chars: Vec<u16> = data[2..]
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|c| u16::from_be_bytes([c[0], c[1]]))
                 .collect();
             (String::from_utf16_lossy(&u16_chars), "UTF-16BE")

@@ -373,7 +373,9 @@ impl AsfDemuxer {
 
     fn decode_utf16le(bytes: &[u8]) -> Option<String> {
         let u16_slice: Vec<u16> = bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
             .take_while(|&c| c != 0) // strip trailing nulls
             .collect();

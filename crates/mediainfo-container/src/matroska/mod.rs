@@ -1047,7 +1047,7 @@ impl MatroskaDemuxer {
             {
                 let slice = if frame_payload[pos] == 0x77 {
                     let mut swapped = Vec::with_capacity(frame_payload.len() - pos);
-                    for chunk in frame_payload[pos..].chunks_exact(2) {
+                    for chunk in frame_payload[pos..].as_chunks::<2>().0 {
                         swapped.push(chunk[1]);
                         swapped.push(chunk[0]);
                     }
