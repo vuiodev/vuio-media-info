@@ -5,7 +5,7 @@ pub struct FormatDetector;
 
 impl FormatDetector {
     pub fn detect(header: &[u8]) -> ContainerFormat {
-        if header.len() < 4 {
+        if header.len() < 3 {
             return ContainerFormat::Unknown;
         }
 
@@ -111,6 +111,11 @@ impl FormatDetector {
         // Musepack (MPC): "MP+" (SV7) or "MPCK" (SV8)
         if prefix.starts_with(b"MP+") || prefix.starts_with(b"MPCK") {
             return ContainerFormat::MPC;
+        }
+
+        // Material Exchange Format (MXF - SMPTE 377M): 06 0E 2B 34
+        if prefix.starts_with(&[0x06, 0x0E, 0x2B, 0x34]) {
+            return ContainerFormat::MXF;
         }
 
         // Advanced Systems Format (ASF / WMA / WMV): 30 26 B2 75 8E 66 CF 11

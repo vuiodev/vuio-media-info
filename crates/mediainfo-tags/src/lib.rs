@@ -1,9 +1,11 @@
+pub mod ape;
 pub mod exif;
 pub mod id3v1;
 pub mod id3v2;
 pub mod itunes;
 pub mod vorbis;
 
+pub use ape::ApeTag;
 pub use exif::ExifTags;
 pub use id3v1::Id3v1Tag;
 pub use id3v2::Id3v2Tag;
@@ -13,6 +15,38 @@ pub use vorbis::VorbisComments;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_ape_tag() {
+        let mut data = Vec::new();
+        // Item 1: Title=My Rock Song
+        let val1 = b"My Rock Song";
+        data.extend_from_slice(&(val1.len() as u32).to_le_bytes());
+        data.extend_from_slice(&0u32.to_le_bytes()); // flags=utf8
+        data.extend_from_slice(b"Title\0");
+        data.extend_from_slice(val1);
+
+        // Item 2: Artist=Rock Band
+        let val2 = b"Rock Band";
+        data.extend_from_slice(&(val2.len() as u32).to_le_bytes());
+        data.extend_from_slice(&0u32.to_le_bytes());
+        data.extend_from_slice(b"Artist\0");
+        data.extend_from_slice(val2);
+
+        // Footer: 32 bytes
+        let items_len = data.len();
+        let tag_size = items_len + 32;
+        data.extend_from_slice(b"APETAGEX");
+        data.extend_from_slice(&2000u32.to_le_bytes()); // version 2000
+        data.extend_from_slice(&(tag_size as u32).to_le_bytes());
+        data.extend_from_slice(&2u32.to_le_bytes()); // 2 items
+        data.extend_from_slice(&0u32.to_le_bytes()); // flags
+        data.extend_from_slice(&[0u8; 8]); // reserved
+
+        let tag = ApeTag::parse(&data).unwrap().unwrap();
+        assert_eq!(tag.title.as_deref(), Some("My Rock Song"));
+        assert_eq!(tag.artist.as_deref(), Some("Rock Band"));
+    }
 
     #[test]
     fn test_id3v1_tag() {

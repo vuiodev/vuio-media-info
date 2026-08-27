@@ -1,16 +1,20 @@
+pub mod asf;
 pub mod detector;
 pub mod flv;
 pub mod isobmff;
 pub mod matroska;
 pub mod mpeg_ts;
+pub mod mxf;
 pub mod ogg;
 pub mod riff;
 
+pub use asf::AsfDemuxer;
 pub use detector::FormatDetector;
 pub use flv::FlvDemuxer;
 pub use isobmff::IsobmffDemuxer;
 pub use matroska::MatroskaDemuxer;
 pub use mpeg_ts::MpegTsDemuxer;
+pub use mxf::MxfDemuxer;
 pub use ogg::OggDemuxer;
 pub use riff::RiffDemuxer;
 
@@ -20,7 +24,7 @@ use mediainfo_core::{
     models::*,
     types::*,
 };
-use mediainfo_tags::{Id3v1Tag, Id3v2Tag};
+use mediainfo_tags::{ApeTag, Id3v1Tag, Id3v2Tag};
 
 /// Top-level Container Demuxer that identifies format and extracts all tracks and metadata.
 pub struct ContainerParser;
@@ -47,6 +51,12 @@ impl ContainerParser {
             }
             ContainerFormat::FLV => {
                 FlvDemuxer::parse_buffer(buffer)
+            }
+            ContainerFormat::ASF => {
+                AsfDemuxer::parse_buffer(buffer)
+            }
+            ContainerFormat::MXF => {
+                MxfDemuxer::parse_buffer(buffer)
             }
             ContainerFormat::FLAC => {
                 Self::parse_flac_stream(buffer)
@@ -343,6 +353,19 @@ impl ContainerParser {
             }
         }
 
+        // Try extracting APEv2 tags
+        if let Ok(Some(ape)) = ApeTag::parse(data) {
+            report.general.title = ape.title;
+            report.general.artist = ape.artist;
+            report.general.album = ape.album;
+            report.general.recorded_date = ape.year;
+            report.general.genre = ape.genre;
+            if ape.cover_data.is_some() {
+                report.general.cover_art_present = true;
+                report.general.cover_mime = ape.cover_mime;
+            }
+        }
+
         report.audios.push(a);
         Ok(report)
     }
@@ -359,5 +382,8 @@ mod tests {
         assert_eq!(FormatDetector::detect(b"RIFF\x24\x00\x00\x00WAVEfmt "), ContainerFormat::WAV);
         assert_eq!(FormatDetector::detect(b"OggS\x00\x02\x00\x00"), ContainerFormat::Ogg);
         assert_eq!(FormatDetector::detect(b"FLV\x01\x05\x00\x00\x00\x09"), ContainerFormat::FLV);
+        assert_eq!(FormatDetector::detect(&[0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11]), ContainerFormat::ASF);
+        assert_eq!(FormatDetector::detect(&[0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01]), ContainerFormat::MXF);
+        assert_eq!(FormatDetector::detect(b"MP+"), ContainerFormat::MPC);
     }
 }

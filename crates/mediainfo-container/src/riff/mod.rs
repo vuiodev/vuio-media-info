@@ -78,37 +78,78 @@ impl RiffDemuxer {
                 let sample_rate = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
                 let byte_rate = u32::from_le_bytes([payload[8], payload[9], payload[10], payload[11]]);
                 let _block_align = u16::from_le_bytes([payload[12], payload[13]]);
-                let bit_depth = u16::from_le_bytes([payload[14], payload[15]]) as u8;
+                let mut bit_depth = u16::from_le_bytes([payload[14], payload[15]]) as u8;
 
                 audio_track.channels = channels;
                 audio_track.sampling_rate = sample_rate;
                 audio_track.bit_rate = Some(byte_rate as u64 * 8);
+
+                let mut channel_layout = match channels {
+                    1 => AudioChannelLayout::Mono,
+                    2 => AudioChannelLayout::Stereo,
+                    6 => AudioChannelLayout::Surround5_1,
+                    8 => AudioChannelLayout::Surround7_1,
+                    _ => AudioChannelLayout::Stereo,
+                };
+
+                if format_tag == 0xFFFE && payload.len() >= 40 {
+                    // WAVE_FORMAT_EXTENSIBLE
+                    let valid_bits = u16::from_le_bytes([payload[18], payload[19]]) as u8;
+                    if valid_bits > 0 {
+                        bit_depth = valid_bits;
+                    }
+                    let channel_mask = u32::from_le_bytes([payload[20], payload[21], payload[22], payload[23]]);
+                    if (channel_mask & 0x003F) == 0x003F {
+                        channel_layout = AudioChannelLayout::Surround5_1;
+                    } else if (channel_mask & 0x00FF) == 0x00FF || (channel_mask & 0x063F) == 0x063F {
+                        channel_layout = AudioChannelLayout::Surround7_1;
+                    } else if channel_mask == 0x0004 {
+                        channel_layout = AudioChannelLayout::Mono;
+                    } else if channel_mask == 0x0003 {
+                        channel_layout = AudioChannelLayout::Stereo;
+                    }
+
+                    let subformat_guid_code = u32::from_le_bytes([payload[24], payload[25], payload[26], payload[27]]);
+                    match subformat_guid_code {
+                        0x0003 => {
+                            audio_track.format = AudioCodec::PCM;
+                            audio_track.format_info = Some("IEEE Float (Extensible)".to_string());
+                        }
+                        0x0092 => {
+                            audio_track.format = AudioCodec::AC3;
+                            audio_track.format_info = Some("Dolby Digital (AC-3)".to_string());
+                        }
+                        _ => {
+                            audio_track.format = AudioCodec::PCM;
+                            audio_track.format_info = Some("PCM (Extensible)".to_string());
+                        }
+                    }
+                } else if format_tag == 3 {
+                    audio_track.format = AudioCodec::PCM;
+                    audio_track.format_info = Some("IEEE Float".to_string());
+                } else if format_tag == 0x0055 {
+                    audio_track.format = AudioCodec::MPEGAudioLayer3;
+                    audio_track.format_info = Some("MPEG Audio Layer 3".to_string());
+                }
+
                 audio_track.bit_depth = Some(bit_depth);
+                audio_track.channel_layout = Some(channel_layout);
                 audio_track.compression_mode = Some(if format_tag == 1 || format_tag == 3 || format_tag == 0xFFFE {
                     "Lossless".to_string()
                 } else {
                     "Lossy".to_string()
                 });
-
-                audio_track.channel_layout = match channels {
-                    1 => Some(AudioChannelLayout::Mono),
-                    2 => Some(AudioChannelLayout::Stereo),
-                    6 => Some(AudioChannelLayout::Surround5_1),
-                    8 => Some(AudioChannelLayout::Surround7_1),
-                    _ => Some(AudioChannelLayout::Stereo),
-                };
+            } else if chunk_id == b"LIST" && payload.len() >= 4 {
+                if &payload[0..4] == b"INFO" {
+                    Self::parse_riff_info_list(&payload[4..], report);
+                }
             } else if chunk_id == b"data" {
                 if data_chunk_size == 0 {
                     data_chunk_size = chunk_size as u64;
                 }
             }
 
-            if chunk_id == b"data" {
-                // data chunk is huge, skip to next or finish
-                break;
-            }
-
-            // Word-aligned chunk padding
+            // Move to next chunk (aligned to 2 bytes)
             offset = payload_offset + chunk_size + (chunk_size % 2);
         }
 
@@ -194,6 +235,10 @@ impl RiffDemuxer {
                         video_track.format = VideoCodec::Other(comp_str);
                     }
                 }
+            } else if chunk_id == b"LIST" && payload.len() >= 4 {
+                if &payload[0..4] == b"INFO" {
+                    Self::parse_riff_info_list(&payload[4..], report);
+                }
             }
 
             offset = payload_offset + chunk_size + (chunk_size % 2);
@@ -210,5 +255,46 @@ impl RiffDemuxer {
         }
 
         Ok(())
+    }
+
+    fn parse_riff_info_list(mut info_data: &[u8], report: &mut MediaReport) {
+        while info_data.len() >= 8 {
+            let fourcc = &info_data[0..4];
+            let chunk_size = u32::from_le_bytes([
+                info_data[4],
+                info_data[5],
+                info_data[6],
+                info_data[7],
+            ]) as usize;
+
+            let payload_offset = 8;
+            if payload_offset + chunk_size > info_data.len() {
+                break;
+            }
+
+            let text_bytes = &info_data[payload_offset..payload_offset + chunk_size];
+            let clean_str = String::from_utf8_lossy(text_bytes)
+                .trim_end_matches('\0')
+                .trim()
+                .to_string();
+
+            if !clean_str.is_empty() {
+                match fourcc {
+                    b"INAM" => report.general.title = Some(clean_str),
+                    b"IART" => report.general.artist = Some(clean_str),
+                    b"IPRD" | b"IALB" => report.general.album = Some(clean_str),
+                    b"ICRD" => report.general.recorded_date = Some(clean_str),
+                    b"IGNR" => report.general.genre = Some(clean_str),
+                    b"ISFT" | b"IENG" => report.general.encoded_application = Some(clean_str),
+                    _ => {}
+                }
+            }
+
+            let next_offset = payload_offset + chunk_size + (chunk_size % 2);
+            if next_offset >= info_data.len() {
+                break;
+            }
+            info_data = &info_data[next_offset..];
+        }
     }
 }
