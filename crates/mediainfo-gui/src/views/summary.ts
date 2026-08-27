@@ -176,7 +176,7 @@ function renderTextItem(tt: TextTrack, index: number): string {
 // ── render Main Summary View ───────────────────────────────────────────────
 export function renderSummaryView(report: MediaReport): string {
   const gen = report.general;
-  const overallBr = computedBitrate(gen.file_size, gen.duration_ms) ?? gen.overall_bitrate;
+  const overallBr = gen.overall_bitrate ?? computedBitrate(gen.file_size, gen.duration_ms);
   const isAudioOnly = report.videos.length === 0;
 
   // General collapsible card (open for audio files, collapsed for video)

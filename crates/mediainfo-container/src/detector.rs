@@ -108,6 +108,11 @@ impl FormatDetector {
             return ContainerFormat::MP3;
         }
 
+        // Musepack (MPC): "MP+" (SV7) or "MPCK" (SV8)
+        if prefix.starts_with(b"MP+") || prefix.starts_with(b"MPCK") {
+            return ContainerFormat::MPC;
+        }
+
         // Advanced Systems Format (ASF / WMA / WMV): 30 26 B2 75 8E 66 CF 11
         if prefix.starts_with(&[0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11]) {
             return ContainerFormat::ASF;

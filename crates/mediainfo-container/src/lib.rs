@@ -63,6 +63,9 @@ impl ContainerParser {
             ContainerFormat::DTS => {
                 Self::parse_dts_stream(buffer)
             }
+            ContainerFormat::MPC => {
+                Self::parse_mpc_stream(buffer)
+            }
             ContainerFormat::Unknown => {
                 // Try MP3 or ID3 tags fallback
                 if let Ok(Some(id3)) = Id3v2Tag::parse(buffer) {
@@ -123,6 +126,12 @@ impl ContainerParser {
         a.duration_ms = Some(streaminfo.duration_ms);
         a.compression_mode = Some("Lossless".to_string());
 
+        if streaminfo.duration_ms > 0.0 {
+            let br = ((data.len() as u64 * 8) as f64 / (streaminfo.duration_ms / 1000.0)) as u64;
+            a.bit_rate = Some(br);
+            report.general.overall_bitrate = Some(br);
+        }
+
         report.audios.push(a);
         Ok(report)
     }
@@ -163,16 +172,35 @@ impl ContainerParser {
                     a.format = AudioCodec::MPEGAudioLayer3;
                     a.format_profile = Some(mp3.layer.to_string());
                     a.sampling_rate = mp3.sample_rate;
-                    a.bit_rate = Some(mp3.bit_rate);
                     a.channels = mp3.channels;
                     a.channel_layout = Some(mp3.channel_layout);
 
-                    if report.general.file_size > 0 && mp3.bit_rate > 0 {
-                        let dur_ms = ((report.general.file_size * 8) as f64 / mp3.bit_rate as f64) * 1000.0;
+                    let audio_data_size = (data.len().saturating_sub(stream_start)) as u64;
+
+                    let (dur_ms, calculated_bitrate) = if let (Some(frames), true) = (mp3.xing_frames, mp3.sample_rate > 0) {
+                        let samples_per_frame = 1152.0;
+                        let dur = (frames as f64 * samples_per_frame / mp3.sample_rate as f64) * 1000.0;
+                        let br = if dur > 0.0 {
+                            let bytes = mp3.xing_bytes.map(|b| b as u64).unwrap_or(audio_data_size);
+                            ((bytes * 8) as f64 / (dur / 1000.0)) as u64
+                        } else {
+                            mp3.bit_rate
+                        };
+                        (dur, br)
+                    } else if mp3.bit_rate > 0 {
+                        let dur = ((audio_data_size * 8) as f64 / mp3.bit_rate as f64) * 1000.0;
+                        (dur, mp3.bit_rate)
+                    } else {
+                        (0.0, mp3.bit_rate)
+                    };
+
+                    if dur_ms > 0.0 {
                         a.duration_ms = Some(dur_ms);
                         report.general.duration_ms = Some(dur_ms);
-                        report.general.overall_bitrate = Some(mp3.bit_rate);
                     }
+                    a.bit_rate = Some(calculated_bitrate);
+                    a.bit_rate_mode = Some(if mp3.is_vbr { BitrateMode::Variable } else { BitrateMode::Constant });
+                    report.general.overall_bitrate = Some(calculated_bitrate);
 
                     report.audios.push(a);
                     break;
@@ -190,6 +218,24 @@ impl ContainerParser {
         report.general.format = ContainerFormat::AAC;
         report.general.file_size = data.len() as u64;
 
+        let frame_len = if data.len() >= 6 {
+            (((data[3] & 0x03) as usize) << 11) | ((data[4] as usize) << 3) | ((data[5] >> 5) as usize)
+        } else {
+            0
+        };
+
+        let bit_rate = if frame_len > 0 && aac.sampling_rate > 0 {
+            (frame_len as u64 * 8 * aac.sampling_rate as u64) / 1024
+        } else {
+            128_000
+        };
+
+        let dur_ms = if bit_rate > 0 {
+            (data.len() as f64 * 8.0 / bit_rate as f64) * 1000.0
+        } else {
+            0.0
+        };
+
         let mut a = AudioTrack::default();
         a.format = AudioCodec::AAC;
         a.format_info = Some("Advanced Audio Coding (ADTS)".to_string());
@@ -197,6 +243,12 @@ impl ContainerParser {
         a.sampling_rate = aac.sampling_rate;
         a.channels = aac.channels;
         a.channel_layout = Some(aac.channel_layout);
+        a.bit_rate = Some(bit_rate);
+        if dur_ms > 0.0 {
+            a.duration_ms = Some(dur_ms);
+            report.general.duration_ms = Some(dur_ms);
+        }
+        report.general.overall_bitrate = Some(bit_rate);
 
         report.audios.push(a);
         Ok(report)
@@ -208,6 +260,12 @@ impl ContainerParser {
         report.general.format = if ac3.is_eac3 { ContainerFormat::MPEG4 } else { ContainerFormat::AC3 };
         report.general.file_size = data.len() as u64;
 
+        let dur_ms = if ac3.bit_rate > 0 {
+            (data.len() as f64 * 8.0 / ac3.bit_rate as f64) * 1000.0
+        } else {
+            0.0
+        };
+
         let mut a = AudioTrack::default();
         a.format = if ac3.is_eac3 { AudioCodec::EAC3 } else { AudioCodec::AC3 };
         a.format_info = Some(if ac3.is_eac3 { "Dolby Digital Plus".to_string() } else { "Dolby Digital".to_string() });
@@ -217,6 +275,11 @@ impl ContainerParser {
         a.channel_layout = Some(ac3.channel_layout);
         a.dialnorm_db = Some(ac3.dialnorm_db);
         a.dolby_atmos_present = ac3.dolby_atmos_present;
+        if dur_ms > 0.0 {
+            a.duration_ms = Some(dur_ms);
+            report.general.duration_ms = Some(dur_ms);
+        }
+        report.general.overall_bitrate = Some(ac3.bit_rate);
 
         report.audios.push(a);
         Ok(report)
@@ -228,6 +291,12 @@ impl ContainerParser {
         report.general.format = ContainerFormat::DTS;
         report.general.file_size = data.len() as u64;
 
+        let dur_ms = if dts.bit_rate > 0 {
+            (data.len() as f64 * 8.0 / dts.bit_rate as f64) * 1000.0
+        } else {
+            0.0
+        };
+
         let mut a = AudioTrack::default();
         a.format = if dts.is_dtsx { AudioCodec::DTSX } else if dts.is_dtshd_ma { AudioCodec::DTSHD } else { AudioCodec::DTS };
         a.format_info = Some(dts.profile_name.to_string());
@@ -236,6 +305,43 @@ impl ContainerParser {
         a.channels = dts.channels;
         a.channel_layout = Some(dts.channel_layout);
         a.bit_depth = Some(dts.bit_depth);
+        if dur_ms > 0.0 {
+            a.duration_ms = Some(dur_ms);
+            report.general.duration_ms = Some(dur_ms);
+        }
+        report.general.overall_bitrate = Some(dts.bit_rate);
+
+        report.audios.push(a);
+        Ok(report)
+    }
+
+    fn parse_mpc_stream(data: &[u8]) -> Result<MediaReport> {
+        let mut report = MediaReport::new();
+        report.general.format = ContainerFormat::MPC;
+        report.general.file_size = data.len() as u64;
+
+        let mut a = AudioTrack::default();
+        a.format = AudioCodec::MPC;
+        a.format_info = Some("Musepack Audio".to_string());
+        a.channels = 2;
+        a.channel_layout = Some(AudioChannelLayout::Stereo);
+        a.sampling_rate = 44100;
+
+        if data.starts_with(b"MP+") && data.len() >= 28 {
+            let frames = u32::from_le_bytes([data[4], data[5], data[6], data[7]]);
+            let sample_rate_idx = (data[8] & 0x03) as usize;
+            let sample_rate = [44100, 48000, 37800, 32000][sample_rate_idx.min(3)];
+            a.sampling_rate = sample_rate;
+            let total_samples = frames as u64 * 1152;
+            let dur_ms = (total_samples as f64 / sample_rate as f64) * 1000.0;
+            if dur_ms > 0.0 {
+                let br = ((data.len() as u64 * 8) as f64 / (dur_ms / 1000.0)) as u64;
+                a.duration_ms = Some(dur_ms);
+                a.bit_rate = Some(br);
+                report.general.duration_ms = Some(dur_ms);
+                report.general.overall_bitrate = Some(br);
+            }
+        }
 
         report.audios.push(a);
         Ok(report)

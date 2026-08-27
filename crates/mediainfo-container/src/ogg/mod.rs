@@ -118,6 +118,37 @@ impl OggDemuxer {
             }
         }
 
+        // Scan backwards for last OggS page to find total granule_position (total samples)
+        let tail_start = data.len().saturating_sub(65536);
+        let tail = &data[tail_start..];
+        let mut last_granule_pos = None;
+        for i in (0..tail.len().saturating_sub(27)).rev() {
+            if &tail[i..i + 4] == b"OggS" {
+                let granule = u64::from_le_bytes([
+                    tail[i + 6], tail[i + 7], tail[i + 8], tail[i + 9],
+                    tail[i + 10], tail[i + 11], tail[i + 12], tail[i + 13],
+                ]);
+                if granule > 0 && granule != u64::MAX {
+                    last_granule_pos = Some(granule);
+                    break;
+                }
+            }
+        }
+
+        if let Some(granule) = last_granule_pos {
+            let sample_rate = if audio_track.sampling_rate > 0 { audio_track.sampling_rate } else { 48000 };
+            let dur_ms = (granule as f64 / sample_rate as f64) * 1000.0;
+            if dur_ms > 0.0 {
+                report.general.duration_ms = Some(dur_ms);
+                audio_track.duration_ms = Some(dur_ms);
+                let br = ((data.len() as u64 * 8) as f64 / (dur_ms / 1000.0)) as u64;
+                if audio_track.bit_rate.is_none() {
+                    audio_track.bit_rate = Some(br);
+                }
+                report.general.overall_bitrate = Some(br);
+            }
+        }
+
         if audio_track.format != AudioCodec::Other("Unknown".to_string()) {
             report.audios.push(audio_track);
         }

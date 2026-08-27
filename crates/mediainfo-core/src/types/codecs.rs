@@ -20,6 +20,7 @@ pub enum ContainerFormat {
     AAC,
     AC3,
     DTS,
+    MPC,
     Unknown,
 }
 
@@ -43,6 +44,7 @@ impl ContainerFormat {
             Self::AAC => "AAC",
             Self::AC3 => "AC-3",
             Self::DTS => "DTS",
+            Self::MPC => "Musepack",
             Self::Unknown => "Unknown",
         }
     }
@@ -131,6 +133,7 @@ pub enum AudioCodec {
     WMA,
     MonkeyAudio, // APE
     WavPack,
+    MPC,
     Other(String),
 }
 
@@ -155,6 +158,7 @@ impl AudioCodec {
             Self::WMA => "WMA",
             Self::MonkeyAudio => "Monkey's Audio",
             Self::WavPack => "WavPack",
+            Self::MPC => "Musepack",
             Self::Other(name) => name.as_str(),
         }
     }
