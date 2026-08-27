@@ -1,0 +1,81 @@
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use crate::types::ContainerFormat;
+
+/// General metadata track for the entire media file / container.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GeneralTrack {
+    pub file_name: Option<String>,
+    pub file_path: Option<String>,
+    pub file_size: u64,
+    pub format: ContainerFormat,
+    pub format_extensions: Vec<String>,
+    pub format_profile: Option<String>,
+    pub format_commercial: Option<String>,
+    pub format_version: Option<String>,
+    pub codec_id: Option<String>,
+    pub duration_ms: Option<f64>,
+    pub overall_bitrate: Option<u64>,
+    pub frame_rate: Option<f64>,
+    pub frame_count: Option<u64>,
+    pub stream_size: Option<u64>,
+    pub header_size: Option<u64>,
+    pub data_size: Option<u64>,
+    pub footer_size: Option<u64>,
+    pub is_streamable: Option<bool>,
+    pub encoded_date: Option<String>,
+    pub tagged_date: Option<String>,
+    pub encoded_application: Option<String>,
+    pub encoded_library: Option<String>,
+    pub title: Option<String>,
+    pub album: Option<String>,
+    pub artist: Option<String>,
+    pub performer: Option<String>,
+    pub genre: Option<String>,
+    pub recorded_date: Option<String>,
+    pub cover_art_present: bool,
+    pub cover_mime: Option<String>,
+    pub cover_data_base64: Option<String>,
+    pub tags: HashMap<String, String>,
+    pub extra: HashMap<String, String>,
+}
+
+impl Default for GeneralTrack {
+    fn default() -> Self {
+        Self {
+            file_name: None,
+            file_path: None,
+            file_size: 0,
+            format: ContainerFormat::Unknown,
+            format_extensions: Vec::new(),
+            format_profile: None,
+            format_commercial: None,
+            format_version: None,
+            codec_id: None,
+            duration_ms: None,
+            overall_bitrate: None,
+            frame_rate: None,
+            frame_count: None,
+            stream_size: None,
+            header_size: None,
+            data_size: None,
+            footer_size: None,
+            is_streamable: None,
+            encoded_date: None,
+            tagged_date: None,
+            encoded_application: None,
+            encoded_library: None,
+            title: None,
+            album: None,
+            artist: None,
+            performer: None,
+            genre: None,
+            recorded_date: None,
+            cover_art_present: false,
+            cover_mime: None,
+            cover_data_base64: None,
+            tags: HashMap::new(),
+            extra: HashMap::new(),
+        }
+    }
+}

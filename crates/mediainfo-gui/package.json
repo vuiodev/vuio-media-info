@@ -1,0 +1,20 @@
+{
+  "name": "mediainfo-gui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.2.0",
+    "@tauri-apps/plugin-dialog": "^2.2.0",
+    "@tauri-apps/plugin-fs": "^2.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vite": "^6.1.1"
+  }
+}

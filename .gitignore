@@ -1,0 +1,35 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+*.pdb
+
+# Node / Frontend / Tauri build artifacts
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+crates/mediainfo-gui/gen/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS specific files
+.DS_Store
+**/.DS_Store
+Thumbs.db
+**/*.Thumbs.db
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# Planning and temporary scratch files
+plan*.*
+*.log
+scratch/
+tmp/

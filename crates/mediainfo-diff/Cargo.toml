@@ -1,0 +1,16 @@
+[package]
+name = "mediainfo-diff"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Differential testing harness comparing Rust mediainfo output vs C++ MediaInfoLib"
+
+[dependencies]
+mediainfo-core.workspace = true
+mediainfo-container.workspace = true
+mediainfo-format.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

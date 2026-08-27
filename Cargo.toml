@@ -1,0 +1,92 @@
+[workspace]
+members = [
+    "crates/mediainfo-core",
+    "crates/mediainfo-video",
+    "crates/mediainfo-audio",
+    "crates/mediainfo-tags",
+    "crates/mediainfo-container",
+    "crates/mediainfo-format",
+    "crates/mediainfo-diff",
+    "crates/mediainfo-gui",
+    ".",
+]
+default-members = [
+    ".",
+    "crates/mediainfo-gui",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["MediaInfo Rust Contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/vyrti/mediainfo"
+readme = "README.md"
+
+[workspace.dependencies]
+# Internal crates
+mediainfo-core = { path = "crates/mediainfo-core", version = "0.1.0" }
+mediainfo-video = { path = "crates/mediainfo-video", version = "0.1.0" }
+mediainfo-audio = { path = "crates/mediainfo-audio", version = "0.1.0" }
+mediainfo-tags = { path = "crates/mediainfo-tags", version = "0.1.0" }
+mediainfo-container = { path = "crates/mediainfo-container", version = "0.1.0" }
+mediainfo-format = { path = "crates/mediainfo-format", version = "0.1.0" }
+mediainfo-diff = { path = "crates/mediainfo-diff", version = "0.1.0" }
+mediainfo = { path = ".", version = "0.1.0" }
+
+# External crates
+thiserror = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+quick-xml = { version = "0.42", features = ["serialize"] }
+byteorder = "1.5"
+bitflags = "2.13"
+memmap2 = "0.9"
+clap = { version = "4.6", features = ["derive"] }
+rayon = "1.12"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+colored = "3.1"
+memchr = "2.7"
+
+# Tauri v2 Ecosystem (Latest)
+tauri = { version = "2.3", features = [] }
+tauri-build = { version = "2.0", features = [] }
+tauri-plugin-dialog = "2.2"
+tauri-plugin-fs = "2.2"
+window-vibrancy = "0.5"
+
+[package]
+name = "mediainfo"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Pure Rust rewrite of MediaInfoLib: exhaustive media metadata inspection and reporting"
+
+[dependencies]
+mediainfo-core.workspace = true
+mediainfo-container.workspace = true
+mediainfo-video.workspace = true
+mediainfo-audio.workspace = true
+mediainfo-tags.workspace = true
+mediainfo-format.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+rayon.workspace = true
+memmap2.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+colored.workspace = true
+thiserror.workspace = true
+memchr.workspace = true
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

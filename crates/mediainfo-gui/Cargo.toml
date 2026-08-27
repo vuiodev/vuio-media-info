@@ -1,0 +1,23 @@
+[package]
+name = "mediainfo-gui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Ultra-lightweight native cross-platform GUI for mediainfo (Tauri v2 + Pure Rust)"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+mediainfo.workspace = true
+mediainfo-core.workspace = true
+mediainfo-format.workspace = true
+mediainfo-diff.workspace = true
+tauri = { workspace = true, features = ["macos-private-api", "devtools"] }
+tauri-plugin-dialog.workspace = true
+tauri-plugin-fs.workspace = true
+window-vibrancy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rayon.workspace = true
