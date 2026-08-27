@@ -28,6 +28,10 @@ fn main() {
             let _ = window.set_title("");
             window_theme::apply_native_theme(&window);
 
+            if let Some(icon) = app.default_window_icon() {
+                let _ = window.set_icon(icon.clone());
+            }
+
             // Enable devtools in debug builds
             #[cfg(debug_assertions)]
             window.open_devtools();
