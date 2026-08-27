@@ -274,7 +274,7 @@ impl TextFormatter {
     }
 
     fn format_bitrate(bps: u64) -> String {
-        if bps >= 1_000_000 {
+        if bps >= 1_000 {
             format!("{} kb/s", Self::format_number(bps / 1000))
         } else {
             format!("{} b/s", Self::format_number(bps))

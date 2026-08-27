@@ -34,6 +34,12 @@ impl MediaInfo {
         let mut report = match ContainerParser::parse(&buffer) {
             Ok(mut rep) if !rep.videos.is_empty() || !rep.audios.is_empty() || rep.general.duration_ms.is_some() => {
                 rep.general.file_size = file_len;
+                if let Some(dur_ms) = rep.general.duration_ms {
+                    if dur_ms > 0.0 && file_len > 0 {
+                        rep.general.overall_bitrate =
+                            Some(((file_len as f64 * 8.0) / (dur_ms / 1000.0)) as u64);
+                    }
+                }
                 rep
             }
             _ => {
@@ -41,6 +47,12 @@ impl MediaInfo {
                 let mmap = unsafe { memmap2::Mmap::map(&file)? };
                 let mut rep = ContainerParser::parse(&mmap)?;
                 rep.general.file_size = file_len;
+                if let Some(dur_ms) = rep.general.duration_ms {
+                    if dur_ms > 0.0 && file_len > 0 {
+                        rep.general.overall_bitrate =
+                            Some(((file_len as f64 * 8.0) / (dur_ms / 1000.0)) as u64);
+                    }
+                }
                 rep
             }
         };

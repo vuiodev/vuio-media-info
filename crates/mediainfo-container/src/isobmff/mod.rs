@@ -456,11 +456,33 @@ impl IsobmffDemuxer {
                                 a.format_info = Some("Dolby Digital".to_string());
                                 a.channels = 6;
                                 a.channel_layout = Some(AudioChannelLayout::Surround5_1);
+                                if let Some(dac3) = Self::find_child_box(entry_data, b"dac3") {
+                                    if dac3.len() >= 3 {
+                                        let fscod = (dac3[0] >> 6) & 0x03;
+                                        let bit_rate_code = ((dac3[1] & 0x03) << 3) | ((dac3[2] >> 5) & 0x07);
+                                        let bitrate_table = [32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 448, 512, 576, 640];
+                                        if (bit_rate_code as usize) < bitrate_table.len() {
+                                            a.bit_rate = Some(bitrate_table[bit_rate_code as usize] * 1000);
+                                        }
+                                        let sample_rates = [48000, 44100, 32000, 0];
+                                        if (fscod as usize) < 3 {
+                                            a.sampling_rate = sample_rates[fscod as usize];
+                                        }
+                                    }
+                                }
                             } else if codec_box == *b"ec-3" {
                                 a.format = AudioCodec::EAC3;
                                 a.format_info = Some("Dolby Digital Plus".to_string());
                                 a.channels = 6;
                                 a.channel_layout = Some(AudioChannelLayout::Surround5_1);
+                                if let Some(dec3) = Self::find_child_box(entry_data, b"dec3") {
+                                    if dec3.len() >= 2 {
+                                        let data_rate = (((dec3[0] as u64) & 0x1F) << 8) | (dec3[1] as u64);
+                                        if data_rate > 0 {
+                                            a.bit_rate = Some(data_rate * 1000);
+                                        }
+                                    }
+                                }
                             }
 
                             report.audios.push(a);

@@ -1,4 +1,4 @@
-use mediainfo_audio::{AacInfo, FlacStreamInfo, OpusHead};
+use mediainfo_audio::{AacInfo, Ac3Header, DtsHeader, FlacStreamInfo, OpusHead, TrueHdHeader};
 use mediainfo_core::{
     bitstream::EbmlVint,
     error::Result,
@@ -47,9 +47,6 @@ impl MatroskaDemuxer {
                 0x18538067 => {
                     // Segment
                     Self::parse_segment(payload, &mut report);
-                    if !report.videos.is_empty() || !report.audios.is_empty() {
-                        break;
-                    }
                 }
                 _ => {}
             }
@@ -108,10 +105,11 @@ impl MatroskaDemuxer {
             };
             let size = size_opt.unwrap_or(0) as usize;
             let payload_off = offset + id_len + size_len;
-            if payload_off + size > data.len() {
-                break;
-            }
-            let payload = &data[payload_off..payload_off + size];
+            let payload = if payload_off + size <= data.len() {
+                &data[payload_off..payload_off + size]
+            } else {
+                &data[payload_off..]
+            };
 
             match id {
                 0x1549A966 => {
@@ -121,10 +119,6 @@ impl MatroskaDemuxer {
                 0x1654AE6B => {
                     // Tracks
                     Self::parse_tracks(payload, timecode_scale, report);
-                    if report.general.duration_ms.is_some() {
-                        // We already have Info + Tracks!
-                        break;
-                    }
                 }
                 0x1043A770 => {
                     // Chapters
@@ -138,17 +132,15 @@ impl MatroskaDemuxer {
                     // Tags
                     Self::parse_tags(payload, report);
                 }
-                0x1F43B675 | 0xA3 | 0xA0 => {
-                    // Cluster / Block
-                    if !report.videos.is_empty() || !report.audios.is_empty() {
-                        break;
-                    }
+                0x1F43B675 => {
+                    // Cluster
+                    Self::parse_cluster_blocks(payload, report);
                 }
-                _ => {
-                    if size_opt.is_none() && (!report.videos.is_empty() || !report.audios.is_empty()) {
-                        break;
-                    }
+                0xA3 | 0xA0 => {
+                    // Direct SimpleBlock or BlockGroup
+                    Self::parse_cluster_blocks(&data[offset..], report);
                 }
+                _ => {}
             }
 
             offset = payload_off + size;
@@ -270,6 +262,8 @@ impl MatroskaDemuxer {
         let mut video_payload = None;
         let mut audio_payload = None;
 
+        let mut actual_track_number = stream_id;
+
         while offset < data.len() {
             let (id, id_len) = match EbmlVint::read_element_id(data, offset) {
                 Ok(res) => res,
@@ -287,6 +281,17 @@ impl MatroskaDemuxer {
             let payload = &data[payload_off..payload_off + size];
 
             match id {
+                0xD7 => {
+                    if size >= 1 && size <= 8 {
+                        let mut val = 0u64;
+                        for &b in payload.iter().take(size) {
+                            val = (val << 8) | b as u64;
+                        }
+                        if val > 0 {
+                            actual_track_number = val as u32;
+                        }
+                    }
+                }
                 0x83 => {
                     track_type = payload.first().copied().unwrap_or(0);
                 }
@@ -331,7 +336,7 @@ impl MatroskaDemuxer {
 
         if track_type == 1 {
             let mut v = VideoTrack::default();
-            v.stream_id = stream_id;
+            v.stream_id = actual_track_number;
             v.codec_id = Some(codec_id.clone());
             v.title = name;
             v.language = language;
@@ -397,7 +402,7 @@ impl MatroskaDemuxer {
             report.videos.push(v);
         } else if track_type == 2 {
             let mut a = AudioTrack::default();
-            a.stream_id = stream_id;
+            a.stream_id = actual_track_number;
             a.codec_id = Some(codec_id.clone());
             a.title = name;
             a.language = language;
@@ -422,12 +427,54 @@ impl MatroskaDemuxer {
             } else if codec_id == "A_AC3" {
                 a.format = AudioCodec::AC3;
                 a.format_info = Some("Dolby Digital".to_string());
+                if !codec_private.is_empty() {
+                    if let Ok(ac3) = Ac3Header::parse(&codec_private) {
+                        a.bit_rate = Some(ac3.bit_rate);
+                        a.sampling_rate = ac3.sample_rate;
+                        a.channels = ac3.channels;
+                        a.channel_layout = Some(ac3.channel_layout);
+                        a.bit_depth = Some(24);
+                    }
+                }
             } else if codec_id == "A_EAC3" {
                 a.format = AudioCodec::EAC3;
                 a.format_info = Some("Dolby Digital Plus".to_string());
-            } else if codec_id == "A_DTS" {
+                if !codec_private.is_empty() {
+                    if let Ok(ac3) = Ac3Header::parse(&codec_private) {
+                        a.bit_rate = Some(ac3.bit_rate);
+                        a.sampling_rate = ac3.sample_rate;
+                        a.channels = ac3.channels;
+                        a.channel_layout = Some(ac3.channel_layout);
+                        a.bit_depth = Some(24);
+                        if ac3.dolby_atmos_present {
+                            a.format_info = Some("Dolby Digital Plus with Dolby Atmos (JOC)".to_string());
+                        }
+                    }
+                }
+            } else if codec_id.starts_with("A_DTS") {
                 a.format = AudioCodec::DTS;
                 a.format_info = Some("DTS Digital Surround".to_string());
+                if !codec_private.is_empty() {
+                    if let Ok(dts) = DtsHeader::parse(&codec_private) {
+                        a.bit_rate = Some(dts.bit_rate);
+                        a.sampling_rate = dts.sample_rate;
+                        a.channels = dts.channels;
+                        a.channel_layout = Some(dts.channel_layout);
+                        a.format_profile = Some(dts.profile_name.to_string());
+                    }
+                }
+            } else if codec_id == "A_TRUEHD" || codec_id == "A_MLP" {
+                a.format = AudioCodec::TrueHD;
+                a.format_info = Some("Dolby TrueHD".to_string());
+                if !codec_private.is_empty() {
+                    if let Ok(thd) = TrueHdHeader::parse(&codec_private) {
+                        a.sampling_rate = thd.sample_rate;
+                        a.channels = thd.channels;
+                        a.channel_layout = Some(thd.channel_layout);
+                        a.format_profile = Some(thd.format_profile);
+                        a.bit_depth = Some(thd.bit_depth);
+                    }
+                }
             } else if codec_id == "A_FLAC" {
                 a.format = AudioCodec::FLAC;
                 a.format_info = Some("Free Lossless Audio Codec".to_string());
@@ -455,7 +502,7 @@ impl MatroskaDemuxer {
             report.audios.push(a);
         } else if track_type == 17 {
             let mut s = TextTrack::default();
-            s.stream_id = stream_id;
+            s.stream_id = actual_track_number;
             s.codec_id = Some(codec_id.clone());
             s.title = name;
             s.language = language;
@@ -815,6 +862,206 @@ impl MatroskaDemuxer {
         }
     }
 
+    fn parse_cluster_blocks(data: &[u8], report: &mut MediaReport) {
+        let mut offset = 0;
+        let mut probed_tracks: std::collections::HashSet<u32> = std::collections::HashSet::new();
+
+        while offset < data.len() {
+            let (id, id_len) = match EbmlVint::read_element_id(data, offset) {
+                Ok(res) => res,
+                Err(_) => break,
+            };
+            let (size_opt, size_len) = match EbmlVint::read_element_size(data, offset + id_len) {
+                Ok(res) => res,
+                Err(_) => break,
+            };
+            let size = size_opt.unwrap_or(0) as usize;
+            let payload_off = offset + id_len + size_len;
+            if payload_off + size > data.len() {
+                break;
+            }
+            let payload = &data[payload_off..payload_off + size];
+
+            if id == 0xA3 || id == 0xA1 {
+                // SimpleBlock or Block
+                Self::probe_block_for_audio(payload, &mut probed_tracks, report);
+            } else if id == 0xA0 {
+                // BlockGroup
+                let mut b_off = 0;
+                while b_off < payload.len() {
+                    let (bid, bid_len) = match EbmlVint::read_element_id(payload, b_off) {
+                        Ok(res) => res,
+                        Err(_) => break,
+                    };
+                    let (bsize_opt, bsize_len) = match EbmlVint::read_element_size(payload, b_off + bid_len) {
+                        Ok(res) => res,
+                        Err(_) => break,
+                    };
+                    let bsize = bsize_opt.unwrap_or(0) as usize;
+                    let bpay_off = b_off + bid_len + bsize_len;
+                    if bpay_off + bsize > payload.len() {
+                        break;
+                    }
+                    if bid == 0xA1 || bid == 0xA3 {
+                        Self::probe_block_for_audio(&payload[bpay_off..bpay_off + bsize], &mut probed_tracks, report);
+                    }
+                    b_off = bpay_off + bsize;
+                }
+            }
+
+            let all_audios_have_bitrate = !report.audios.is_empty() && report.audios.iter().all(|a| a.bit_rate.is_some());
+            if all_audios_have_bitrate {
+                break;
+            }
+
+            offset = payload_off + size;
+        }
+    }
+
+    fn probe_block_for_audio(
+        block_data: &[u8],
+        probed_tracks: &mut std::collections::HashSet<u32>,
+        report: &mut MediaReport,
+    ) {
+        if block_data.len() < 4 {
+            return;
+        }
+
+        // 1. Read TrackNumber VINT
+        let (track_num_u64, vint_len) = match EbmlVint::read_element_size(block_data, 0) {
+            Ok((Some(val), len)) => (val, len),
+            _ => return,
+        };
+        let track_num = track_num_u64 as u32;
+
+        if probed_tracks.contains(&track_num) {
+            return;
+        }
+
+        // 2. Skip TrackNumber VINT (vint_len) + Timecode (2 bytes) + Flags (1 byte)
+        if block_data.len() < vint_len + 3 {
+            return;
+        }
+
+        let flags = block_data[vint_len + 2];
+        let lacing = (flags >> 1) & 0x03;
+        let mut frame_start = vint_len + 3;
+
+        if lacing == 1 {
+            // Xiph lacing
+            if block_data.len() <= frame_start {
+                return;
+            }
+            let frame_count = block_data[frame_start] as usize + 1;
+            frame_start += 1;
+            for _ in 0..frame_count - 1 {
+                while frame_start < block_data.len() && block_data[frame_start] == 255 {
+                    frame_start += 1;
+                }
+                frame_start += 1;
+            }
+        } else if lacing == 3 {
+            // Fixed-size lacing
+            frame_start += 1;
+        } else if lacing == 2 {
+            // EBML lacing
+            if block_data.len() <= frame_start {
+                return;
+            }
+            let _frame_count = block_data[frame_start] as usize + 1;
+            frame_start += 1;
+            if let Ok((_, elen)) = EbmlVint::read_element_size(block_data, frame_start) {
+                frame_start += elen;
+            }
+        }
+
+        if frame_start >= block_data.len() {
+            return;
+        }
+
+        let frame_payload = &block_data[frame_start..];
+
+        // Find target audio track
+        if let Some(audio) = report.audios.iter_mut().find(|a| a.stream_id == track_num) {
+            if audio.bit_rate.is_some() {
+                probed_tracks.insert(track_num);
+                return;
+            }
+
+            // Check for AC-3 / E-AC-3 (0x0B77)
+            if let Some(pos) = frame_payload.windows(2).position(|w| w == [0x0B, 0x77] || w == [0x77, 0x0B]) {
+                let slice = if frame_payload[pos] == 0x77 {
+                    let mut swapped = Vec::with_capacity(frame_payload.len() - pos);
+                    for chunk in frame_payload[pos..].chunks_exact(2) {
+                        swapped.push(chunk[1]);
+                        swapped.push(chunk[0]);
+                    }
+                    swapped
+                } else {
+                    frame_payload[pos..].to_vec()
+                };
+
+                if let Ok(ac3) = Ac3Header::parse(&slice) {
+                    audio.bit_rate = Some(ac3.bit_rate);
+                    audio.sampling_rate = ac3.sample_rate;
+                    audio.channels = ac3.channels;
+                    audio.channel_layout = Some(ac3.channel_layout);
+                    audio.bit_depth = Some(24);
+                    if ac3.is_eac3 {
+                        audio.format = AudioCodec::EAC3;
+                        if ac3.dolby_atmos_present {
+                            audio.format_info = Some("Dolby Digital Plus with Dolby Atmos (JOC)".to_string());
+                        } else {
+                            audio.format_info = Some("Dolby Digital Plus".to_string());
+                        }
+                    } else {
+                        audio.format = AudioCodec::AC3;
+                        audio.format_info = Some("Dolby Digital".to_string());
+                        audio.format_profile = Some(if ac3.channels == 6 {
+                            "Dolby Digital 5.1".to_string()
+                        } else {
+                            "Dolby Digital Stereo".to_string()
+                        });
+                    }
+                    probed_tracks.insert(track_num);
+                    return;
+                }
+            }
+
+            // Check for DTS (0x7FFE8001 / 0x1FFFE800 / 0xFE7F0180)
+            if let Some(pos) = frame_payload.windows(4).position(|w| {
+                w == [0x7F, 0xFE, 0x80, 0x01]
+                    || w == [0x1F, 0xFF, 0xE8, 0x00]
+                    || w == [0xFE, 0x7F, 0x01, 0x80]
+            }) {
+                if let Ok(dts) = DtsHeader::parse(&frame_payload[pos..]) {
+                    audio.bit_rate = Some(dts.bit_rate);
+                    audio.sampling_rate = dts.sample_rate;
+                    audio.channels = dts.channels;
+                    audio.channel_layout = Some(dts.channel_layout);
+                    audio.format_profile = Some(dts.profile_name.to_string());
+                    probed_tracks.insert(track_num);
+                    return;
+                }
+            }
+
+            // Check for TrueHD / MLP (0xF8726FBA / 0xF8726FA9)
+            if let Some(pos) = frame_payload.windows(4).position(|w| {
+                w == [0xF8, 0x72, 0x6F, 0xBA] || w == [0xF8, 0x72, 0x6F, 0xA9]
+            }) {
+                if let Ok(thd) = TrueHdHeader::parse(&frame_payload[pos..]) {
+                    audio.sampling_rate = thd.sample_rate;
+                    audio.channels = thd.channels;
+                    audio.channel_layout = Some(thd.channel_layout);
+                    audio.format_profile = Some(thd.format_profile);
+                    audio.bit_depth = Some(thd.bit_depth);
+                    probed_tracks.insert(track_num);
+                    return;
+                }
+            }
+        }
+    }
+
     fn parse_tags(data: &[u8], report: &mut MediaReport) {
         let mut offset = 0;
         while offset < data.len() {
@@ -834,13 +1081,79 @@ impl MatroskaDemuxer {
             let payload = &data[payload_off..payload_off + size];
 
             if id == 0x7373 {
-                let tag_str = String::from_utf8_lossy(payload);
-                if let Some((k, v)) = tag_str.split_once('=') {
-                    report.general.tags.insert(k.to_string(), v.to_string());
+                // Tag element
+                Self::parse_tag_entry(payload, report);
+            }
+
+            offset = payload_off + size;
+        }
+    }
+
+    fn parse_tag_entry(data: &[u8], report: &mut MediaReport) {
+        let mut offset = 0;
+        let mut name = String::new();
+        let mut value = String::new();
+
+        while offset < data.len() {
+            let (id, id_len) = match EbmlVint::read_element_id(data, offset) {
+                Ok(res) => res,
+                Err(_) => break,
+            };
+            let (size_opt, size_len) = match EbmlVint::read_element_size(data, offset + id_len) {
+                Ok(res) => res,
+                Err(_) => break,
+            };
+            let size = size_opt.unwrap_or(0) as usize;
+            let payload_off = offset + id_len + size_len;
+            if payload_off + size > data.len() {
+                break;
+            }
+            let payload = &data[payload_off..payload_off + size];
+
+            if id == 0x67C8 {
+                // SimpleTag -> TagName (0x45A3) + TagString (0x4487)
+                let mut tag_off = 0;
+                while tag_off < payload.len() {
+                    let (tid, tid_len) = match EbmlVint::read_element_id(payload, tag_off) {
+                        Ok(res) => res,
+                        Err(_) => break,
+                    };
+                    let (tsize_opt, tsize_len) = match EbmlVint::read_element_size(payload, tag_off + tid_len) {
+                        Ok(res) => res,
+                        Err(_) => break,
+                    };
+                    let tsize = tsize_opt.unwrap_or(0) as usize;
+                    let tpay_off = tag_off + tid_len + tsize_len;
+                    if tpay_off + tsize > payload.len() {
+                        break;
+                    }
+                    let tpay = &payload[tpay_off..tpay_off + tsize];
+
+                    if tid == 0x45A3 {
+                        name = String::from_utf8_lossy(tpay).to_string();
+                    } else if tid == 0x4487 {
+                        value = String::from_utf8_lossy(tpay).to_string();
+                    }
+
+                    tag_off = tpay_off + tsize;
                 }
             }
 
             offset = payload_off + size;
+        }
+
+        if !name.is_empty() && !value.is_empty() {
+            if name.starts_with("BPS") {
+                if let Ok(bps_val) = value.parse::<u64>() {
+                    for a in &mut report.audios {
+                        if a.bit_rate.is_none() {
+                            a.bit_rate = Some(bps_val);
+                            break;
+                        }
+                    }
+                }
+            }
+            report.general.tags.insert(name, value);
         }
     }
 }
