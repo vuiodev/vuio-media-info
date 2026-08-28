@@ -4,6 +4,10 @@ A high-performance, pure Rust rewrite of [MediaInfoLib](https://github.com/Media
 
 Provides technical and tag information about video and audio files with memory safety, zero-copy bitstream parsing, and multithreaded batch processing.
 
+Crossplatform GUI & CLI
+
+![Vuio Media Info](screen.jpg)
+
 ---
 
 ## Key Features
