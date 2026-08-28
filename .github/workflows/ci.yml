@@ -589,12 +589,14 @@ jobs:
     steps:
       - name: Check Homebrew Token Availability
         id: check_token
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_VUIO_PUSH_TOKEN || secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          if [ -n "${{ secrets.HOMEBREW_TAP_TOKEN }}" ]; then
+          if [ -n "$TAP_TOKEN" ]; then
             echo "has_token=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_token=false" >> "$GITHUB_OUTPUT"
-            echo "No HOMEBREW_TAP_TOKEN secret configured; skipping Homebrew tap sync."
+            echo "No HOMEBREW_VUIO_PUSH_TOKEN or HOMEBREW_TAP_TOKEN secret configured; skipping Homebrew tap sync."
           fi
 
       - name: Get tag name
@@ -618,7 +620,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: vuiodev/homebrew-vuio
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          token: ${{ secrets.HOMEBREW_VUIO_PUSH_TOKEN || secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-vuio
 
       - name: Calculate Checksums and Update Formula
