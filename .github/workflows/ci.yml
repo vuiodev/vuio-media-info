@@ -471,24 +471,41 @@ jobs:
             RELEASE_DIR="target/${{ matrix.target }}/release"
           fi
 
-          STAGING="stage-${{ matrix.os-arch }}"
-          mkdir -p "$STAGING"
+          # 1. Package CLI archive
+          STAGING_CLI="stage-cli-${{ matrix.os-arch }}"
+          mkdir -p "$STAGING_CLI"
 
-          # Copy CLI binary
           if [ -f "$RELEASE_DIR/${{ env.BINARY_NAME }}.exe" ]; then
-            cp "$RELEASE_DIR/${{ env.BINARY_NAME }}.exe" "$STAGING/"
+            cp "$RELEASE_DIR/${{ env.BINARY_NAME }}.exe" "$STAGING_CLI/"
           elif [ -f "$RELEASE_DIR/${{ env.BINARY_NAME }}" ]; then
-            cp "$RELEASE_DIR/${{ env.BINARY_NAME }}" "$STAGING/"
+            cp "$RELEASE_DIR/${{ env.BINARY_NAME }}" "$STAGING_CLI/"
+          fi
+          cp README.md LICENSE-MIT LICENSE-APACHE "$STAGING_CLI/" 2>/dev/null || true
+
+          CLI_ASSET_NAME="${{ env.BINARY_NAME }}-${{ matrix.os-arch }}${{ matrix.asset_ext }}"
+          if [ "${{ matrix.asset_ext }}" == ".zip" ]; then
+            if command -v 7z >/dev/null 2>&1; then
+              (cd "$STAGING_CLI" && 7z a -r "../$CLI_ASSET_NAME" .)
+            elif command -v zip >/dev/null 2>&1; then
+              (cd "$STAGING_CLI" && zip -r "../$CLI_ASSET_NAME" .)
+            else
+              powershell -Command "Compress-Archive -Path '$STAGING_CLI/*' -DestinationPath '$CLI_ASSET_NAME' -Force"
+            fi
+          else
+            tar -czf "$CLI_ASSET_NAME" -C "$STAGING_CLI" .
           fi
 
-          # Copy GUI binary if built on supported platforms (Windows & macOS)
+          # 2. Package GUI archive (Windows & macOS only)
           if [ "${{ matrix.build_gui }}" == "true" ]; then
+            STAGING_GUI="stage-gui-${{ matrix.os-arch }}"
+            mkdir -p "$STAGING_GUI"
+
             if [ -f "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}.exe" ]; then
-              cp "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}.exe" "$STAGING/"
+              cp "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}.exe" "$STAGING_GUI/"
             elif [ -f "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}" ]; then
-              cp "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}" "$STAGING/"
+              cp "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}" "$STAGING_GUI/"
               if [[ "${{ matrix.runner }}" == macos* ]]; then
-                APP_DIR="$STAGING/VuioMediaInfo.app"
+                APP_DIR="$STAGING_GUI/VuioMediaInfo.app"
                 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
                 cp "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}" "$APP_DIR/Contents/MacOS/VuioMediaInfo"
                 cp crates/mediainfo-gui/icons/icon.icns "$APP_DIR/Contents/Resources/icon.icns"
@@ -509,29 +526,29 @@ jobs:
                   '</plist>' > "$APP_DIR/Contents/Info.plist"
               fi
             fi
-          fi
+            cp README.md LICENSE-MIT LICENSE-APACHE "$STAGING_GUI/" 2>/dev/null || true
 
-          # Copy documentation and licenses
-          cp README.md LICENSE-MIT LICENSE-APACHE "$STAGING/" 2>/dev/null || true
-
-          ASSET_NAME="${{ env.BINARY_NAME }}-${{ matrix.os-arch }}${{ matrix.asset_ext }}"
-          if [ "${{ matrix.asset_ext }}" == ".zip" ]; then
-            if command -v 7z >/dev/null 2>&1; then
-              (cd "$STAGING" && 7z a -r "../$ASSET_NAME" .)
-            elif command -v zip >/dev/null 2>&1; then
-              (cd "$STAGING" && zip -r "../$ASSET_NAME" .)
+            GUI_ASSET_NAME="${{ env.GUI_BINARY_NAME }}-${{ matrix.os-arch }}${{ matrix.asset_ext }}"
+            if [ "${{ matrix.asset_ext }}" == ".zip" ]; then
+              if command -v 7z >/dev/null 2>&1; then
+                (cd "$STAGING_GUI" && 7z a -r "../$GUI_ASSET_NAME" .)
+              elif command -v zip >/dev/null 2>&1; then
+                (cd "$STAGING_GUI" && zip -r "../$GUI_ASSET_NAME" .)
+              else
+                powershell -Command "Compress-Archive -Path '$STAGING_GUI/*' -DestinationPath '$GUI_ASSET_NAME' -Force"
+              fi
             else
-              powershell -Command "Compress-Archive -Path '$STAGING/*' -DestinationPath '$ASSET_NAME' -Force"
+              tar -czf "$GUI_ASSET_NAME" -C "$STAGING_GUI" .
             fi
-          else
-            tar -czf "$ASSET_NAME" -C "$STAGING" .
           fi
 
       - name: Upload artifact for release
         uses: actions/upload-artifact@v4
         with:
           name: release-artifact-${{ matrix.os-arch }}
-          path: ${{ env.BINARY_NAME }}-*
+          path: |
+            ${{ env.BINARY_NAME }}-*
+            ${{ env.GUI_BINARY_NAME }}-*
 
   # ===================================================================
   # Job: Create GitHub Release
