@@ -1,4 +1,4 @@
-Several crates in this codebase are rewrite (fork) in Rust of: MediaInfoLib
+Parts in this codebase are fork of: MediaInfoLib
 https://github.com/MediaArea/MediaInfoLib
 
 Original MediaInfoLib license:
