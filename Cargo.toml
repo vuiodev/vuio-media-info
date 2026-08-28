@@ -1,12 +1,5 @@
 [workspace]
 members = [
-    "crates/mediainfo-core",
-    "crates/mediainfo-video",
-    "crates/mediainfo-audio",
-    "crates/mediainfo-tags",
-    "crates/mediainfo-container",
-    "crates/mediainfo-format",
-    "crates/mediainfo-diff",
     "crates/mediainfo-gui",
     ".",
 ]
@@ -26,33 +19,13 @@ repository = "https://github.com/vuiodev/vuio-media-info"
 readme = "README.md"
 
 [workspace.dependencies]
-# Internal crates
-mediainfo-core = { path = "crates/mediainfo-core", version = "0.1.0" }
-mediainfo-video = { path = "crates/mediainfo-video", version = "0.1.0" }
-mediainfo-audio = { path = "crates/mediainfo-audio", version = "0.1.0" }
-mediainfo-tags = { path = "crates/mediainfo-tags", version = "0.1.0" }
-mediainfo-container = { path = "crates/mediainfo-container", version = "0.1.0" }
-mediainfo-format = { path = "crates/mediainfo-format", version = "0.1.0" }
-mediainfo-diff = { path = "crates/mediainfo-diff", version = "0.1.0" }
 vuio-media-info = { path = ".", version = "0.1.0" }
-
-# External crates
-thiserror = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-quick-xml = { version = "0.42", features = ["serialize"] }
-byteorder = "1.5"
-bitflags = "2.13"
-memmap2 = "0.9"
-clap = { version = "4.6", features = ["derive"] }
 rayon = "1.12"
-tracing = "0.1"
-tracing-subscriber = "0.3"
-colored = "3.1"
-memchr = "2.8"
 jwalk = "0.9"
 
-# Tauri v2 Ecosystem (Latest)
+# Tauri v2 Ecosystem (GUI)
 tauri = { version = "2.11", features = [] }
 tauri-build = { version = "2.6", features = [] }
 tauri-plugin-dialog = "2.7"
@@ -66,26 +39,27 @@ edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Pure Rust rewrite of MediaInfoLib: exhaustive media metadata inspection and reporting"
+description = "Pure Rust rewrite of MediaInfoLib: exhaustive media metadata inspection and reporting engine"
+repository.workspace = true
+readme.workspace = true
+keywords = ["mediainfo", "video", "audio", "metadata", "multimedia"]
+categories = ["multimedia::video", "multimedia::audio", "command-line-utilities"]
 
 [dependencies]
-mediainfo-core.workspace = true
-mediainfo-container.workspace = true
-mediainfo-video.workspace = true
-mediainfo-audio.workspace = true
-mediainfo-tags.workspace = true
-mediainfo-format.workspace = true
-
 serde.workspace = true
 serde_json.workspace = true
-clap.workspace = true
+quick-xml = { version = "0.42", features = ["serialize"] }
+byteorder = "1.5"
+bitflags = "2.13"
+memmap2 = "0.9"
+clap = { version = "4.6", features = ["derive"] }
 rayon.workspace = true
-memmap2.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-colored.workspace = true
-thiserror.workspace = true
-memchr.workspace = true
+tracing = "0.1"
+tracing-subscriber = "0.3"
+colored = "3.1"
+thiserror = "2.0"
+memchr = "2.8"
+jwalk.workspace = true
 
 [lib]
 name = "vuio_media_info"

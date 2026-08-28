@@ -5,15 +5,14 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 description = "Ultra-lightweight native cross-platform GUI for mediainfo (Tauri v2 + Pure Rust)"
+publish = false
+exclude = ["node_modules", "dist"]
 
 [build-dependencies]
 tauri-build.workspace = true
 
 [dependencies]
 vuio-media-info.workspace = true
-mediainfo-core.workspace = true
-mediainfo-format.workspace = true
-mediainfo-diff.workspace = true
 tauri = { workspace = true, features = ["macos-private-api", "devtools"] }
 tauri-plugin-dialog.workspace = true
 tauri-plugin-fs.workspace = true

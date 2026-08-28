@@ -9,11 +9,11 @@
 //! ## Quick Start (Library Usage)
 //!
 //! ```no_run
-//! use vuio_media_info::{MediaInfo, MediaReport, OutputFormat};
+//! use vuio_media_info::{inspect, MediaReport, OutputFormat};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // 1. Inspect a file from disk
-//!     let report: MediaReport = MediaInfo::open_path("movie.mkv")?;
+//!     let report: MediaReport = inspect("movie.mkv")?;
 //!
 //!     // 2. Access strongly-typed properties
 //!     println!("Container format: {}", report.general.format);
@@ -26,22 +26,87 @@
 //!     }
 //!
 //!     // 3. Format as standard JSON schema, Text, XML, CSV, or HTML
-//!     let json = OutputFormat::Json.format(&report)?;
+//!     let json = report.to_json()?;
 //!     println!("{}", json);
 //!
 //!     Ok(())
 //! }
 //! ```
 
-pub use mediainfo_core::error::{MediaInfoError, Result};
-pub use mediainfo_core::models::MediaReport;
-pub use mediainfo_core::types::*;
-pub use mediainfo_format::OutputFormat;
+pub mod audio;
+pub mod container;
+pub mod core;
+pub mod diff;
+pub mod format;
+pub mod tags;
+pub mod video;
 
-use mediainfo_container::ContainerParser;
+// Re-export primary types and models for top-level ergonomics
+pub use core::error::{MediaInfoError, Result};
+pub use core::models::*;
+pub use core::types::*;
+pub use diff::{ComparisonDiff, DiffResult, DifferentialTester, FieldDifference, compare_reports};
+pub use format::OutputFormat;
+
+use container::ContainerParser;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
+
+/// Convenience function to analyze a media file from a local filesystem path.
+///
+/// # Example
+/// ```no_run
+/// use vuio_media_info::inspect;
+///
+/// let report = inspect("sample.mp4")?;
+/// println!("Container: {}", report.general.format);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+pub fn inspect(path: impl AsRef<Path>) -> Result<MediaReport> {
+    MediaInfo::open_path(path)
+}
+
+/// Convenience function to analyze a media file from an in-memory byte slice.
+///
+/// # Example
+/// ```no_run
+/// use vuio_media_info::inspect_bytes;
+///
+/// let bytes = std::fs::read("audio.flac")?;
+/// let report = inspect_bytes(&bytes)?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+pub fn inspect_bytes(bytes: &[u8]) -> Result<MediaReport> {
+    MediaInfo::open_buffer(bytes)
+}
+
+/// Convenience function to analyze a media stream from any standard `Read` reader.
+///
+/// # Example
+/// ```no_run
+/// use vuio_media_info::inspect_reader;
+/// use std::io::Cursor;
+///
+/// let cursor = Cursor::new(vec![0u8; 100]);
+/// let report = inspect_reader(cursor)?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+pub fn inspect_reader(reader: impl Read) -> Result<MediaReport> {
+    MediaInfo::open_reader(reader)
+}
+
+/// Convenience function to compare two media reports and produce a differential analysis.
+pub fn compare(a: &MediaReport, b: &MediaReport) -> ComparisonDiff {
+    compare_reports(a, b)
+}
+
+/// Convenience function to inspect and compare two media files by their paths.
+pub fn compare_files(path_a: impl AsRef<Path>, path_b: impl AsRef<Path>) -> Result<ComparisonDiff> {
+    let rep_a = inspect(path_a)?;
+    let rep_b = inspect(path_b)?;
+    Ok(compare(&rep_a, &rep_b))
+}
 
 /// High-level facade for inspecting media files and generating reports.
 pub struct MediaInfo;

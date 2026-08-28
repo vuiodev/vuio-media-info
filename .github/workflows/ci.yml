@@ -134,14 +134,10 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: features-${{ hashFiles('**/Cargo.lock') }}
-      - name: Check individual crates
+      - name: Check package and documentation
         run: |
-          for crate in mediainfo-core mediainfo-video mediainfo-audio mediainfo-tags \
-                       mediainfo-container mediainfo-format mediainfo-diff vuio-media-info; do
-            echo "::group::Check $crate"
-            cargo check -p "$crate" --all-targets
-            echo "::endgroup::"
-          done
+          cargo check -p vuio-media-info --all-targets --all-features
+          cargo test -p vuio-media-info --doc
 
   msrv:
     name: Minimum supported Rust version
@@ -173,8 +169,8 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: msrv-${{ steps.msrv.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}
-      - name: Check CLI and core crates with declared MSRV
-        run: cargo check -p mediainfo-core -p mediainfo-video -p mediainfo-audio -p mediainfo-tags -p mediainfo-container -p mediainfo-format -p vuio-media-info
+      - name: Check CLI and library with declared MSRV
+        run: cargo check -p vuio-media-info
 
   # ===================================================================
   # Run Tests and Checks (Push, Pull Requests, or Manual 'test' run)

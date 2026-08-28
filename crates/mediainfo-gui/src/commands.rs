@@ -1,29 +1,13 @@
-use mediainfo_core::types::ContainerFormat;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Mutex;
-use vuio_media_info::{MediaInfo, MediaReport, OutputFormat};
+use vuio_media_info::{
+    ComparisonDiff, ContainerFormat, MediaInfo, MediaReport, OutputFormat, compare_reports,
+};
 
 pub struct CliState {
     pub initial_files: Mutex<Vec<String>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FieldDiff {
-    pub category: String,
-    pub field: String,
-    pub value_a: String,
-    pub value_b: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ComparisonDiff {
-    pub file_a: String,
-    pub file_b: String,
-    pub report_a: MediaReport,
-    pub report_b: MediaReport,
-    pub differences: Vec<FieldDiff>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,54 +138,12 @@ pub fn format_report(path: String, format: String) -> Result<String, String> {
 #[tauri::command]
 pub fn compare_files(path_a: String, path_b: String) -> Result<ComparisonDiff, String> {
     eprintln!("[cmd] compare_files(\"{}\", \"{}\")", path_a, path_b);
-    let rep_a = MediaInfo::open_path(&path_a).map_err(|e| e.to_string())?;
-    let rep_b = MediaInfo::open_path(&path_b).map_err(|e| e.to_string())?;
+    let mut rep_a = MediaInfo::open_path(&path_a).map_err(|e| e.to_string())?;
+    let mut rep_b = MediaInfo::open_path(&path_b).map_err(|e| e.to_string())?;
+    rep_a.general.file_name = Some(path_a.clone());
+    rep_b.general.file_name = Some(path_b.clone());
 
-    let mut differences = Vec::new();
-
-    if rep_a.general.format != rep_b.general.format {
-        differences.push(FieldDiff {
-            category: "General".to_string(),
-            field: "Format".to_string(),
-            value_a: rep_a.general.format.display_name().to_string(),
-            value_b: rep_b.general.format.display_name().to_string(),
-        });
-    }
-
-    if rep_a.general.file_size != rep_b.general.file_size {
-        differences.push(FieldDiff {
-            category: "General".to_string(),
-            field: "FileSize".to_string(),
-            value_a: format!("{} bytes", rep_a.general.file_size),
-            value_b: format!("{} bytes", rep_b.general.file_size),
-        });
-    }
-
-    if rep_a.videos.len() != rep_b.videos.len() {
-        differences.push(FieldDiff {
-            category: "Video".to_string(),
-            field: "StreamCount".to_string(),
-            value_a: rep_a.videos.len().to_string(),
-            value_b: rep_b.videos.len().to_string(),
-        });
-    }
-
-    if rep_a.audios.len() != rep_b.audios.len() {
-        differences.push(FieldDiff {
-            category: "Audio".to_string(),
-            field: "StreamCount".to_string(),
-            value_a: rep_a.audios.len().to_string(),
-            value_b: rep_b.audios.len().to_string(),
-        });
-    }
-
-    Ok(ComparisonDiff {
-        file_a: path_a,
-        file_b: path_b,
-        report_a: rep_a,
-        report_b: rep_b,
-        differences,
-    })
+    Ok(compare_reports(&rep_a, &rep_b))
 }
 
 #[tauri::command]
