@@ -1,9 +1,9 @@
-use mediainfo::{MediaInfo, MediaReport, OutputFormat};
 use mediainfo_core::types::ContainerFormat;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Mutex;
+use vuio_media_info::{MediaInfo, MediaReport, OutputFormat};
 
 pub struct CliState {
     pub initial_files: Mutex<Vec<String>>,

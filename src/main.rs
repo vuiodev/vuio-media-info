@@ -1,8 +1,8 @@
 use clap::{Parser, ValueEnum};
 use colored::Colorize;
-use mediainfo::{MediaInfo, MediaReport, OutputFormat};
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
+use vuio_media_info::{MediaInfo, MediaReport, OutputFormat};
 
 #[derive(ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
 enum CliOutputFormat {

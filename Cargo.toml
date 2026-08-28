@@ -20,7 +20,7 @@ resolver = "2"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.97.0"
-authors = ["VuIO Media Info Contributors"]
+authors = ["vyrti"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/vuiodev/vuiomediainfo"
 readme = "README.md"
@@ -34,7 +34,7 @@ mediainfo-tags = { path = "crates/mediainfo-tags", version = "0.1.0" }
 mediainfo-container = { path = "crates/mediainfo-container", version = "0.1.0" }
 mediainfo-format = { path = "crates/mediainfo-format", version = "0.1.0" }
 mediainfo-diff = { path = "crates/mediainfo-diff", version = "0.1.0" }
-mediainfo = { path = ".", version = "0.1.0" }
+vuio-media-info = { path = ".", version = "0.1.0" }
 
 # External crates
 thiserror = "2.0"
@@ -60,7 +60,7 @@ tauri-plugin-fs = "2.5"
 window-vibrancy = "0.5"
 
 [package]
-name = "mediainfo"
+name = "vuio-media-info"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

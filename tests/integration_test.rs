@@ -1,6 +1,6 @@
-use mediainfo::{MediaInfo, OutputFormat};
 use std::fs::File;
 use std::io::Write;
+use vuio_media_info::{MediaInfo, OutputFormat};
 
 #[test]
 fn test_cli_end_to_end_wav() {
@@ -25,7 +25,7 @@ fn test_cli_end_to_end_wav() {
     drop(f);
 
     let report = MediaInfo::open_path(&wav_path).unwrap();
-    assert_eq!(report.general.format, mediainfo::ContainerFormat::WAV);
+    assert_eq!(report.general.format, vuio_media_info::ContainerFormat::WAV);
     assert_eq!(report.audios.len(), 1);
     assert_eq!(report.audios[0].channels, 2);
     assert_eq!(report.audios[0].sampling_rate, 44100);

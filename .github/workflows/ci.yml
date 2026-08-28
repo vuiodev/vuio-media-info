@@ -24,8 +24,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  BINARY_NAME: mediainfo
-  GUI_BINARY_NAME: mediainfo-gui
+  BINARY_NAME: vuio-media-info
+  GUI_BINARY_NAME: vuio-media-info-gui
 
 jobs:
   format:
@@ -107,7 +107,7 @@ jobs:
           key: clippy-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock') }}
       - name: "Run Clippy on Linux (CLI & Libs)"
         if: runner.os == 'Linux'
-        run: cargo clippy --workspace --exclude mediainfo-gui --all-targets --all-features -- -D clippy::all -D warnings
+        run: cargo clippy --workspace --exclude vuio-media-info-gui --all-targets --all-features -- -D clippy::all -D warnings
       - name: "Run Clippy on macOS & Windows (Full Workspace including GUI)"
         if: runner.os != 'Linux'
         run: cargo clippy --workspace --all-targets --all-features -- -D clippy::all -D warnings
@@ -137,7 +137,7 @@ jobs:
       - name: Check individual crates
         run: |
           for crate in mediainfo-core mediainfo-video mediainfo-audio mediainfo-tags \
-                       mediainfo-container mediainfo-format mediainfo-diff mediainfo; do
+                       mediainfo-container mediainfo-format mediainfo-diff vuio-media-info; do
             echo "::group::Check $crate"
             cargo check -p "$crate" --all-targets
             echo "::endgroup::"
@@ -174,7 +174,7 @@ jobs:
             target/
           key: msrv-${{ steps.msrv.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}
       - name: Check CLI and core crates with declared MSRV
-        run: cargo check -p mediainfo-core -p mediainfo-video -p mediainfo-audio -p mediainfo-tags -p mediainfo-container -p mediainfo-format -p mediainfo
+        run: cargo check -p mediainfo-core -p mediainfo-video -p mediainfo-audio -p mediainfo-tags -p mediainfo-container -p mediainfo-format -p vuio-media-info
 
   # ===================================================================
   # Run Tests and Checks (Push, Pull Requests, or Manual 'test' run)
@@ -286,7 +286,7 @@ jobs:
 
       - name: "Build project (CLI only)"
         if: matrix.build_gui == false && matrix.target != 'x86_64-unknown-freebsd'
-        run: cargo build -p mediainfo --target ${{ matrix.target }}
+        run: cargo build -p vuio-media-info --target ${{ matrix.target }}
 
       - name: "Run tests (Native GUI platforms)"
         if: matrix.build_gui == true && matrix.target != 'aarch64-pc-windows-msvc'
@@ -294,7 +294,7 @@ jobs:
 
       - name: "Run tests (Native Linux CLI)"
         if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: cargo test --workspace --exclude mediainfo-gui --target ${{ matrix.target }}
+        run: cargo test --workspace --exclude vuio-media-info-gui --target ${{ matrix.target }}
 
       - name: "Build and test in FreeBSD VM (CLI only)"
         if: matrix.target == 'x86_64-unknown-freebsd'
@@ -313,8 +313,8 @@ jobs:
             set -e
             . "$HOME/.cargo/env"
             rustc -vV
-            cargo build -p mediainfo
-            cargo test --workspace --exclude mediainfo-gui
+            cargo build -p vuio-media-info
+            cargo test --workspace --exclude vuio-media-info-gui
 
   # ===================================================================
   # Job: Build Release Artifacts
@@ -429,7 +429,7 @@ jobs:
 
       - name: "Build binary (CLI only release)"
         if: matrix.build_gui == false && matrix.target != 'x86_64-unknown-freebsd'
-        run: cargo build --release -p mediainfo --target ${{ matrix.target }}
+        run: cargo build --release -p vuio-media-info --target ${{ matrix.target }}
 
       - name: "Build binary in FreeBSD VM (CLI only)"
         if: matrix.target == 'x86_64-unknown-freebsd'
@@ -448,7 +448,7 @@ jobs:
             set -e
             . "$HOME/.cargo/env"
             rustc -vV
-            cargo build --release -p mediainfo
+            cargo build --release -p vuio-media-info
 
       - name: Package artifacts
         shell: bash
@@ -617,9 +617,9 @@ jobs:
         if: steps.check_token.outputs.has_token == 'true'
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository_owner }}/homebrew-mediainfo
+          repository: vuiodev/homebrew-vuio
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          path: homebrew-mediainfo
+          path: homebrew-vuio
 
       - name: Calculate Checksums and Update Formula
         if: steps.check_token.outputs.has_token == 'true'
@@ -640,52 +640,82 @@ jobs:
             sha256sum "$file_path" | cut -d' ' -f1
           }
           
-          MAC_ARM_SHA=$(get_sha256 "mediainfo-macos-arm64.tar.gz")
-          MAC_INTEL_SHA=$(get_sha256 "mediainfo-macos-x86_64.tar.gz")
-          LINUX_ARM64_SHA=$(get_sha256 "mediainfo-linux-arm64.tar.gz")
-          LINUX_ARMV7_SHA=$(get_sha256 "mediainfo-linux-armv7.tar.gz")
-          LINUX_INTEL_SHA=$(get_sha256 "mediainfo-linux-x86_64.tar.gz")
+          MAC_ARM_SHA=$(get_sha256 "vuio-media-info-macos-arm64.tar.gz")
+          MAC_INTEL_SHA=$(get_sha256 "vuio-media-info-macos-x86_64.tar.gz")
+          LINUX_ARM64_SHA=$(get_sha256 "vuio-media-info-linux-arm64.tar.gz")
+          LINUX_ARMV7_SHA=$(get_sha256 "vuio-media-info-linux-armv7.tar.gz")
+          LINUX_INTEL_SHA=$(get_sha256 "vuio-media-info-linux-x86_64.tar.gz")
+
+          GUI_MAC_ARM_SHA=$(get_sha256 "vuio-media-info-gui-macos-arm64.tar.gz")
+          GUI_MAC_INTEL_SHA=$(get_sha256 "vuio-media-info-gui-macos-x86_64.tar.gz")
           
-          echo "Updating Formula/mediainfo.rb..."
-          FORMULA_FILE="homebrew-mediainfo/Formula/mediainfo.rb"
+          # 1. Generate CLI Formula
+          echo "Generating homebrew-vuio/Formula/vuio-media-info.rb..."
+          mkdir -p homebrew-vuio/Formula
+          printf '%s\n' \
+            'class VuioMediaInfo < Formula' \
+            '  desc "Exhaustive media metadata inspection and reporting engine in pure Rust"' \
+            '  homepage "https://github.com/vuiodev/vuio-media-info"' \
+            "  version \"${VERSION}\"" \
+            '' \
+            '  if OS.mac?' \
+            '    if Hardware::CPU.arm?' \
+            "      url \"https://github.com/vuiodev/vuio-media-info/releases/download/${TAG_NAME}/vuio-media-info-macos-arm64.tar.gz\"" \
+            "      sha256 \"${MAC_ARM_SHA}\"" \
+            '    else' \
+            "      url \"https://github.com/vuiodev/vuio-media-info/releases/download/${TAG_NAME}/vuio-media-info-macos-x86_64.tar.gz\"" \
+            "      sha256 \"${MAC_INTEL_SHA}\"" \
+            '    end' \
+            '  elsif OS.linux?' \
+            '    if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?' \
+            "      url \"https://github.com/vuiodev/vuio-media-info/releases/download/${TAG_NAME}/vuio-media-info-linux-arm64.tar.gz\"" \
+            "      sha256 \"${LINUX_ARM64_SHA}\"" \
+            '    elsif Hardware::CPU.arm?' \
+            "      url \"https://github.com/vuiodev/vuio-media-info/releases/download/${TAG_NAME}/vuio-media-info-linux-armv7.tar.gz\"" \
+            "      sha256 \"${LINUX_ARMV7_SHA}\"" \
+            '    else' \
+            "      url \"https://github.com/vuiodev/vuio-media-info/releases/download/${TAG_NAME}/vuio-media-info-linux-x86_64.tar.gz\"" \
+            "      sha256 \"${LINUX_INTEL_SHA}\"" \
+            '    end' \
+            '  end' \
+            '' \
+            '  def install' \
+            '    bin.install "vuio-media-info"' \
+            '  end' \
+            '' \
+            '  test do' \
+            '    system "#{bin}/vuio-media-info", "--version"' \
+            '  end' \
+            'end' > homebrew-vuio/Formula/vuio-media-info.rb
+
+          # 2. Generate GUI Cask (macOS)
+          echo "Generating homebrew-vuio/Casks/vuio-media-info.rb..."
+          mkdir -p homebrew-vuio/Casks
+          printf '%s\n' \
+            'cask "vuio-media-info" do' \
+            '  arch arm: "arm64", intel: "x86_64"' \
+            '' \
+            "  version \"${VERSION}\"" \
+            "  sha256 arm:   \"${GUI_MAC_ARM_SHA}\"," \
+            "         intel: \"${GUI_MAC_INTEL_SHA}\"" \
+            '' \
+            '  url "https://github.com/vuiodev/vuio-media-info/releases/download/v#{version}/vuio-media-info-gui-macos-#{arch}.tar.gz"' \
+            '  name "VuIO Media Info"' \
+            '  desc "Ultra-lightweight native cross-platform GUI for mediainfo"' \
+            '  homepage "https://github.com/vuiodev/vuio-media-info"' \
+            '' \
+            '  app "VuioMediaInfo.app"' \
+            '  binary "#{appdir}/VuioMediaInfo.app/Contents/MacOS/VuioMediaInfo", target: "vuio-media-info-gui"' \
+            '' \
+            '  zap trash: [' \
+            '    "~/Library/Application Support/com.vuiomediainfo.desktop",' \
+            '    "~/Library/Saved Application State/com.vuiomediainfo.desktop.savedState",' \
+            '  ]' \
+            'end' > homebrew-vuio/Casks/vuio-media-info.rb
           
-          if [ -f "$FORMULA_FILE" ]; then
-            sed -i "s/version \".*\"/version \"${VERSION}\"/" "$FORMULA_FILE"
-            sed -i "s|releases/download/v.*/|releases/download/${TAG_NAME}/|g" "$FORMULA_FILE"
-            
-            python3 -c "
-          import re, sys
-          
-          mac_arm = '$MAC_ARM_SHA'
-          mac_intel = '$MAC_INTEL_SHA'
-          linux_arm64 = '$LINUX_ARM64_SHA'
-          linux_armv7 = '$LINUX_ARMV7_SHA'
-          linux_intel = '$LINUX_INTEL_SHA'
-          
-          with open('$FORMULA_FILE', 'r') as f:
-              content = f.read()
-              
-          patterns = [
-              (r'(mediainfo-macos-arm64\.tar\.gz\"\s+sha256\s+\")[^\"]+(\")', mac_arm),
-              (r'(mediainfo-macos-x86_64\.tar\.gz\"\s+sha256\s+\")[^\"]+(\")', mac_intel),
-              (r'(mediainfo-linux-arm64\.tar\.gz\"\s+sha256\s+\")[^\"]+(\")', linux_arm64),
-              (r'(mediainfo-linux-armv7\.tar\.gz\"\s+sha256\s+\")[^\"]+(\")', linux_armv7),
-              (r'(mediainfo-linux-x86_64\.tar\.gz\"\s+sha256\s+\")[^\"]+(\")', linux_intel),
-          ]
-          
-          for pattern, sha in patterns:
-              new_content, count = re.subn(pattern, r'\g<1>' + sha + r'\g<2>', content)
-              if count >= 1:
-                  content = new_content
-          
-          with open('$FORMULA_FILE', 'w') as f:
-              f.write(content)
-          "
-            
-            cd homebrew-mediainfo
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add Formula/mediainfo.rb
-            git commit -m "Update mediainfo formula to version ${VERSION}" || echo "No changes to commit"
-            git push origin main || echo "Push failed or not permitted"
-          fi
+          cd homebrew-vuio
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Update vuio-media-info formula & cask to version ${VERSION}" || echo "No changes to commit"
+          git push origin main || echo "Push failed or not permitted"

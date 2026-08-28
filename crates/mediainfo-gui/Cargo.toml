@@ -1,5 +1,5 @@
 [package]
-name = "mediainfo-gui"
+name = "vuio-media-info-gui"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -10,7 +10,7 @@ description = "Ultra-lightweight native cross-platform GUI for mediainfo (Tauri 
 tauri-build.workspace = true
 
 [dependencies]
-mediainfo.workspace = true
+vuio-media-info.workspace = true
 mediainfo-core.workspace = true
 mediainfo-format.workspace = true
 mediainfo-diff.workspace = true
