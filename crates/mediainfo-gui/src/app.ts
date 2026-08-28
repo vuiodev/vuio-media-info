@@ -3,14 +3,13 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { MediaReport, ComparisonDiff } from "./types";
 import { renderSummaryView } from "./views/summary";
-import { renderTreeView } from "./views/tree";
-import { renderGridView } from "./views/grid";
+import { renderTreeView, renderTreeSections } from "./views/tree";
 import { renderRawView } from "./views/raw";
 import { renderDiffView } from "./views/diff";
 import { renderBatchView } from "./views/batch";
 
 export class MediaInfoApp {
-  private activeTab: "summary" | "tree" | "grid" | "raw" | "diff" | "batch" = "summary";
+  private activeTab: "summary" | "tree" | "raw" | "diff" | "batch" = "summary";
   private currentReport?: MediaReport;
   private currentRawFormat = "text";
   private rawContent = "";
@@ -21,7 +20,6 @@ export class MediaInfoApp {
   private diffFileA?: string;
   private diffFileB?: string;
   private treeSearchQuery = "";
-  private gridSearchQuery = "";
 
   constructor() {
     console.log("[app] constructor called");
@@ -117,7 +115,6 @@ export class MediaInfoApp {
       <div class="nav-tab-bar">
         <div class="tab-pill ${this.activeTab === "summary" ? "active" : ""}" data-tab="summary">Dashboard</div>
         <div class="tab-pill ${this.activeTab === "tree" ? "active" : ""}" data-tab="tree">Tree View</div>
-        <div class="tab-pill ${this.activeTab === "grid" ? "active" : ""}" data-tab="grid">Data Grid</div>
         <div class="tab-pill ${this.activeTab === "raw" ? "active" : ""}" data-tab="raw">Raw Export</div>
         <div class="tab-pill ${this.activeTab === "diff" ? "active" : ""}" data-tab="diff">Compare</div>
         <div class="tab-pill ${this.activeTab === "batch" ? "active" : ""}" data-tab="batch">Batch (${this.batchReports.length})</div>
@@ -156,7 +153,6 @@ export class MediaInfoApp {
     switch (this.activeTab) {
       case "summary": return renderSummaryView(this.currentReport);
       case "tree": return renderTreeView(this.currentReport, this.treeSearchQuery);
-      case "grid": return renderGridView(this.currentReport, this.gridSearchQuery);
       case "raw": return renderRawView(this.rawContent, this.currentRawFormat);
       default: return "";
     }
@@ -191,6 +187,35 @@ export class MediaInfoApp {
 
     document.addEventListener("click", async (e) => {
       const target = e.target as HTMLElement;
+
+      // Tree View header accordion toggle
+      const treeHeader = target.closest(".tree-header") as HTMLElement | null;
+      if (treeHeader) {
+        const section = treeHeader.closest(".tree-section") as HTMLElement | null;
+        if (section) {
+          section.classList.toggle("collapsed");
+        }
+        return;
+      }
+
+      // Tree View search clear buttons
+      if (target.id === "btn-tree-search-clear" || target.id === "btn-clear-tree-search") {
+        this.treeSearchQuery = "";
+        const treeInput = document.getElementById("tree-search-input") as HTMLInputElement | null;
+        if (treeInput) treeInput.value = "";
+        const container = document.getElementById("tree-sections-container");
+        const badge = document.getElementById("tree-search-badge");
+        if (this.currentReport && container) {
+          const { html } = renderTreeSections(this.currentReport, "");
+          container.innerHTML = html;
+          if (badge) {
+            badge.textContent = "Live Filter";
+            badge.classList.remove("active");
+          }
+        }
+        if (treeInput) treeInput.focus();
+        return;
+      }
 
       // Quick stepper buttons
       if (target.id === "btn-prev-file") {
@@ -305,16 +330,20 @@ export class MediaInfoApp {
     if (treeInput) {
       treeInput.addEventListener("input", () => {
         this.treeSearchQuery = treeInput.value;
-        const main = document.getElementById("main-content-view");
-        if (main && this.currentReport) main.innerHTML = renderTreeView(this.currentReport, this.treeSearchQuery);
-      });
-    }
-    const gridInput = document.getElementById("grid-search-input") as HTMLInputElement | null;
-    if (gridInput) {
-      gridInput.addEventListener("input", () => {
-        this.gridSearchQuery = gridInput.value;
-        const main = document.getElementById("main-content-view");
-        if (main && this.currentReport) main.innerHTML = renderGridView(this.currentReport, this.gridSearchQuery);
+        const container = document.getElementById("tree-sections-container");
+        const badge = document.getElementById("tree-search-badge");
+        if (container && this.currentReport) {
+          const { html, matchCount } = renderTreeSections(this.currentReport, this.treeSearchQuery);
+          container.innerHTML = html;
+          if (badge) {
+            badge.textContent = this.treeSearchQuery.trim() ? `${matchCount} matches` : "Live Filter";
+            if (this.treeSearchQuery.trim()) {
+              badge.classList.add("active");
+            } else {
+              badge.classList.remove("active");
+            }
+          }
+        }
       });
     }
   }
@@ -339,12 +368,11 @@ export class MediaInfoApp {
         }
       }
 
-      if (cmd && e.key >= "1" && e.key <= "6") {
+      if (cmd && e.key >= "1" && e.key <= "5") {
         e.preventDefault();
-        const tabs: ("summary" | "tree" | "grid" | "raw" | "diff" | "batch")[] = [
+        const tabs: ("summary" | "tree" | "raw" | "diff" | "batch")[] = [
           "summary",
           "tree",
-          "grid",
           "raw",
           "diff",
           "batch",

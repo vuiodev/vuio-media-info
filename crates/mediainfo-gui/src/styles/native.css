@@ -381,13 +381,104 @@ body {
   margin-top: 4px;
 }
 
-/* Tree & Accordions */
+/* Tree View & Live Filter */
+.tree-view-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tree-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.tree-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  max-width: 480px;
+}
+
+.tree-search-icon {
+  position: absolute;
+  left: 12px;
+  font-size: 13px;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.tree-search-box input {
+  width: 100%;
+  padding: 9px 36px 9px 34px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.tree-search-box input:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
+}
+
+.tree-search-clear-btn {
+  position: absolute;
+  right: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: var(--text-muted);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: all 0.15s ease;
+}
+
+.tree-search-clear-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.tree-status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 5px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  transition: all 0.2s ease;
+}
+
+.tree-status-badge.active {
+  color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.12);
+  border-color: rgba(6, 182, 212, 0.3);
+}
+
 .tree-section {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
   background: var(--bg-card);
   overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.tree-section:hover {
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .tree-header {
@@ -398,10 +489,19 @@ body {
   background: rgba(255, 255, 255, 0.02);
   cursor: pointer;
   font-weight: 600;
+  font-size: 13px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .tree-header:hover {
   background: rgba(255, 255, 255, 0.05);
+}
+
+.tree-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .tree-content {
@@ -413,8 +513,14 @@ body {
   border-top: 1px solid var(--border-subtle);
 }
 
+.tree-section.collapsed .tree-content {
+  display: none;
+}
+
 .tree-key {
   color: var(--text-muted);
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .tree-val {
@@ -423,6 +529,28 @@ body {
   word-break: break-all;
   user-select: text;
   -webkit-user-select: text;
+}
+
+.tree-search-highlight {
+  background: rgba(6, 182, 212, 0.3);
+  color: #fff;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.tree-empty-hint {
+  grid-column: 1 / -1;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.tree-empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  background: var(--bg-card);
+  border: 1px dashed var(--border-subtle);
+  border-radius: 12px;
 }
 
 /* Technical Data Grid */
