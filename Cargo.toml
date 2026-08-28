@@ -22,7 +22,7 @@ edition = "2024"
 rust-version = "1.97.0"
 authors = ["vyrti"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/vuiodev/vuiomediainfo"
+repository = "https://github.com/vuiodev/vuio-media-info"
 readme = "README.md"
 
 [workspace.dependencies]
@@ -86,6 +86,14 @@ tracing-subscriber.workspace = true
 colored.workspace = true
 thiserror.workspace = true
 memchr.workspace = true
+
+[lib]
+name = "vuio_media_info"
+path = "src/lib.rs"
+
+[[bin]]
+name = "vuio-media-info"
+path = "src/main.rs"
 
 [profile.release]
 opt-level = 3

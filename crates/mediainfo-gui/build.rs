@@ -40,7 +40,9 @@ fn main() {
 
     // If npm build failed and dist/index.html still missing, provide fallback so tauri-build doesn't panic
     if !dist_index.exists() {
-        eprintln!("[build.rs] Warning: dist/index.html missing after build. Creating fallback dist/index.html");
+        eprintln!(
+            "[build.rs] Warning: dist/index.html missing after build. Creating fallback dist/index.html"
+        );
         let dist_dir = manifest_path.join("dist");
         let _ = fs::create_dir_all(&dist_dir);
         let fallback_html = r#"<!DOCTYPE html><html><head><title>VuIO Media Info</title></head><body><div id="app">Loading...</div></body></html>"#;

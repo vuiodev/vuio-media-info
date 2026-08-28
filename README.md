@@ -71,99 +71,99 @@ mediainfo/
 ---
 
 ## CLI Usage
-
-### Basic Inspection (Classic Text)
-```bash
-mediainfo movie.mkv
-```
-
-### JSON Output
-```bash
-mediainfo -O json movie.mp4
-```
-
-### XML Output
-```bash
-mediainfo -O xml sample.m2ts
-```
-
-### CSV Batch Summary
-```bash
-mediainfo -O csv -r /path/to/media/library/ > library_report.csv
-```
-
-### Standalone HTML Report
-```bash
-mediainfo -O html video.mkv > report.html
-```
-
----
-
-## Rust Library API
-
-Add `mediainfo` to your `Cargo.toml`:
-
-```toml
-[dependencies]
-mediainfo = { path = "path/to/mediainfo" }
-```
-
-### Example Usage:
-
-```rust
-use mediainfo::{MediaInfo, OutputFormat};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Analyze a media file on disk (auto memory-mapped)
-    let report = MediaInfo::open_path("sample.mkv")?;
-
-    // 2. Access strongly-typed properties
-    println!("Container format: {}", report.general.format.display_name());
-    if let Some(dur) = report.general.duration_ms {
-        println!("Duration: {:.2} seconds", dur / 1000.0);
-    }
-
-    for video in &report.videos {
-        println!(
-            "Video track #{}: {} {}x{} @ {:.3} fps",
-            video.stream_id,
-            video.format.display_name(),
-            video.width,
-            video.height,
-            video.frame_rate.unwrap_or(0.0)
-        );
-        if let Some(ref hdr) = video.hdr_format {
-            println!("  HDR format: {}", hdr);
-        }
-    }
-
-    for audio in &report.audios {
-        println!(
-            "Audio track #{}: {} {} channels @ {} Hz",
-            audio.stream_id,
-            audio.format.display_name(),
-            audio.channels,
-            audio.sampling_rate
-        );
-    }
-
-    // 3. Export to JSON, XML, Text, CSV, or HTML
-    let json_output = OutputFormat::Json.format(&report)?;
-    println!("{}", json_output);
-
-    Ok(())
-}
-```
-
----
-
-## License
-
-MIT or Apache 2.0
-
----
-
-## Attribution
-
-Part of this work is based on MediaInfoLib by MediaArea.net SARL.
-See NOTICE for original MediaInfoLib license.
+ 
+ ### Basic Inspection (Classic Text)
+ ```bash
+ vuio-media-info movie.mkv
+ ```
+ 
+ ### JSON Output
+ ```bash
+ vuio-media-info -O json movie.mp4
+ ```
+ 
+ ### XML Output
+ ```bash
+ vuio-media-info -O xml sample.m2ts
+ ```
+ 
+ ### CSV Batch Summary
+ ```bash
+ vuio-media-info -O csv -r /path/to/media/library/ > library_report.csv
+ ```
+ 
+ ### Standalone HTML Report
+ ```bash
+ vuio-media-info -O html video.mkv > report.html
+ ```
+ 
+ ---
+ 
+ ## Rust Library API
+ 
+ Add `vuio-media-info` to your `Cargo.toml`:
+ 
+ ```toml
+ [dependencies]
+ vuio-media-info = "0.1.0"
+ ```
+ 
+ ### Example Usage:
+ 
+ ```rust
+ use vuio_media_info::{MediaInfo, OutputFormat};
+ 
+ fn main() -> Result<(), Box<dyn std::error::Error>> {
+     // 1. Analyze a media file on disk (auto fast-probe + memory-mapped fallback)
+     let report = MediaInfo::open_path("sample.mkv")?;
+ 
+     // 2. Access strongly-typed properties
+     println!("Container format: {}", report.general.format);
+     if let Some(dur) = report.general.duration_ms {
+         println!("Duration: {:.2} seconds", dur / 1000.0);
+     }
+ 
+     for (i, video) in report.videos.iter().enumerate() {
+         println!(
+             "Video track #{}: {} {}x{} @ {:.3} fps",
+             i + 1,
+             video.format,
+             video.width.unwrap_or(0),
+             video.height.unwrap_or(0),
+             video.frame_rate.unwrap_or(0.0)
+         );
+         if let Some(ref hdr) = video.hdr_format {
+             println!("  HDR format: {}", hdr);
+         }
+     }
+ 
+     for (i, audio) in report.audios.iter().enumerate() {
+         println!(
+             "Audio track #{}: {} {} channels @ {} Hz",
+             i + 1,
+             audio.format,
+             audio.channels,
+             audio.sampling_rate.unwrap_or(0)
+         );
+     }
+ 
+     // 3. Export to JSON, XML, Text, CSV, or HTML
+     let json_output = OutputFormat::Json.format(&report);
+     println!("{}", json_output);
+ 
+     Ok(())
+ }
+ ```
+ 
+ ---
+ 
+ ## License
+ 
+ MIT or Apache 2.0
+ 
+ ---
+ 
+ ## Attribution
+ 
+ Part of this work is based on MediaInfoLib by MediaArea.net SARL.
+ See NOTICE for original MediaInfoLib license.
