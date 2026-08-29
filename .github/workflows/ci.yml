@@ -514,7 +514,7 @@ jobs:
           elif [ -f "$RELEASE_DIR/${{ env.BINARY_NAME }}" ]; then
             cp "$RELEASE_DIR/${{ env.BINARY_NAME }}" "$STAGING_CLI/"
           fi
-          cp README.md LICENSE-MIT LICENSE-APACHE "$STAGING_CLI/" 2>/dev/null || true
+          cp README.md NOTICE LICENSE-MIT LICENSE-APACHE "$STAGING_CLI/" 2>/dev/null || true
 
           CLI_ASSET_NAME="${{ env.BINARY_NAME }}-${{ matrix.os-arch }}${{ matrix.asset_ext }}"
           if [ "${{ matrix.asset_ext }}" == ".zip" ]; then
@@ -568,7 +568,7 @@ jobs:
             elif [ -f "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}" ]; then
               cp "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}" "$STAGING_GUI/"
             fi
-            cp README.md LICENSE-MIT LICENSE-APACHE "$STAGING_GUI/" 2>/dev/null || true
+            cp README.md NOTICE LICENSE-MIT LICENSE-APACHE "$STAGING_GUI/" 2>/dev/null || true
 
             GUI_ASSET_NAME="${{ env.GUI_BINARY_NAME }}-${{ matrix.os-arch }}${{ matrix.asset_ext }}"
             if [ "${{ matrix.asset_ext }}" == ".zip" ]; then
