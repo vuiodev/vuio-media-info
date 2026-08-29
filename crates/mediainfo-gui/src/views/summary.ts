@@ -9,24 +9,36 @@ function fmtSize(bytes: number): string {
 
 function fmtDuration(ms?: number): string {
   if (!ms || ms <= 0) return "—";
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  return h > 0
-    ? `${h}h ${m}m ${sec}s (${fmtDurationShort(ms)})`
-    : `${m}m ${sec}s (${fmtDurationShort(ms)})`;
+  const totalMs = Math.round(ms);
+  const h = Math.floor(totalMs / 3600000);
+  const m = Math.floor((totalMs % 3600000) / 60000);
+  const sec = Math.floor((totalMs % 60000) / 1000);
+  const millis = totalMs % 1000;
+
+  let str = "";
+  if (h > 0) {
+    str = `${h}h ${m}m ${sec}s ${millis}ms`;
+  } else if (m > 0) {
+    str = `${m}m ${sec}s ${millis}ms`;
+  } else if (sec > 0) {
+    str = `${sec}s ${millis}ms`;
+  } else {
+    str = `${millis}ms`;
+  }
+  return `${str} (${fmtDurationShort(ms)})`;
 }
 
 function fmtDurationShort(ms?: number): string {
   if (!ms || ms <= 0) return "—";
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
+  const totalMs = Math.round(ms);
+  const h = Math.floor(totalMs / 3600000);
+  const m = Math.floor((totalMs % 3600000) / 60000);
+  const sec = Math.floor((totalMs % 60000) / 1000);
+  const millis = totalMs % 1000;
+  const msStr = String(millis).padStart(3, "0");
   return h > 0
-    ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`
-    : `${m}:${String(sec).padStart(2, "0")}`;
+    ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}.${msStr}`
+    : `${m}:${String(sec).padStart(2, "0")}.${msStr}`;
 }
 
 function fmtBitrate(bps?: number): string {

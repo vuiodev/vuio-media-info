@@ -21,11 +21,22 @@ export function renderBatchView(reports: MediaReport[], currentIndex = 0): strin
   };
 
   const formatDuration = (ms?: number) => {
-    if (!ms) return "-";
-    const totalSec = Math.floor(ms / 1000);
-    const mins = Math.floor(totalSec / 60);
-    const secs = totalSec % 60;
-    return `${mins}m ${secs}s`;
+    if (!ms || ms <= 0) return "-";
+    const totalMs = Math.round(ms);
+    const h = Math.floor(totalMs / 3600000);
+    const m = Math.floor((totalMs % 3600000) / 60000);
+    const sec = Math.floor((totalMs % 60000) / 1000);
+    const millis = totalMs % 1000;
+
+    if (h > 0) {
+      return `${h}h ${m}m ${sec}s ${millis}ms`;
+    } else if (m > 0) {
+      return `${m}m ${sec}s ${millis}ms`;
+    } else if (sec > 0) {
+      return `${sec}s ${millis}ms`;
+    } else {
+      return `${millis}ms`;
+    }
   };
 
   return `
@@ -49,7 +60,7 @@ export function renderBatchView(reports: MediaReport[], currentIndex = 0): strin
             <th>File Name</th>
             <th style="width: 90px;">Format</th>
             <th style="width: 85px;">Size</th>
-            <th style="width: 85px;">Duration</th>
+            <th style="width: 105px;">Duration</th>
             <th style="width: 130px;">Video</th>
             <th style="width: 130px;">Audio</th>
           </tr>

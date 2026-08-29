@@ -312,7 +312,7 @@ impl TextFormatter {
     }
 
     /// Formats a duration the way MediaInfo does, keeping the sub-second remainder so
-    /// short clips do not collapse to a bare second count.
+    /// clips display duration down to millisecond units (e.g. 1 min 50 s 17 ms).
     fn format_duration(ms: f64) -> String {
         let total_ms = ms.max(0.0).round() as u64;
         let hours = total_ms / 3_600_000;
@@ -321,11 +321,13 @@ impl TextFormatter {
         let millis = total_ms % 1000;
 
         if hours > 0 {
-            format!("{hours} h {mins} min")
+            format!("{hours} h {mins} min {secs} s {millis} ms")
         } else if mins > 0 {
-            format!("{mins} min {secs} s")
-        } else {
+            format!("{mins} min {secs} s {millis} ms")
+        } else if secs > 0 {
             format!("{secs} s {millis} ms")
+        } else {
+            format!("{millis} ms")
         }
     }
 
@@ -348,5 +350,24 @@ impl TextFormatter {
             result.push(c);
         }
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_duration() {
+        assert_eq!(TextFormatter::format_duration(0.0), "0 ms");
+        assert_eq!(TextFormatter::format_duration(17.0), "17 ms");
+        assert_eq!(TextFormatter::format_duration(500.0), "500 ms");
+        assert_eq!(TextFormatter::format_duration(1500.0), "1 s 500 ms");
+        assert_eq!(TextFormatter::format_duration(50017.0), "50 s 17 ms");
+        assert_eq!(TextFormatter::format_duration(110017.0), "1 min 50 s 17 ms");
+        assert_eq!(
+            TextFormatter::format_duration(3661025.0),
+            "1 h 1 min 1 s 25 ms"
+        );
     }
 }
