@@ -142,10 +142,8 @@ impl MpegPsDemuxer {
                         if let Some(len) = Self::pes_packet_len(&data[offset..]) {
                             let packet_end = (offset + 6 + len).min(data.len());
                             let packet = &data[offset..packet_end];
-                            if let Some((_, _, pts)) = Self::pes_payload(packet, start_code) {
-                                if let Some(pts) = pts {
-                                    last_pts = Some(last_pts.map_or(pts, |p: u64| p.max(pts)));
-                                }
+                            if let Some((_, _, Some(pts))) = Self::pes_payload(packet, start_code) {
+                                last_pts = Some(last_pts.map_or(pts, |p: u64| p.max(pts)));
                             }
                             offset = packet_end;
                             if len == 0 {

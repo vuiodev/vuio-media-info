@@ -146,6 +146,7 @@ impl MediaInfo {
             ContainerParser::parse(&buffer)?
         } else {
             let mmap = unsafe { memmap2::Mmap::map(&file)? };
+            #[cfg(unix)]
             let _ = mmap.advise_range(
                 memmap2::Advice::WillNeed,
                 0,
