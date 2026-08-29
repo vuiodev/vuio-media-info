@@ -62,29 +62,100 @@ impl JsonFormatter {
                 "Height": v.height.to_string(),
                 "BitDepth": v.bit_depth.to_string(),
             });
-            if let Some(ref info) = v.format_info {
-                v_val["Format_Info"] = json!(info);
+            let mut put = |key: &str, val: Option<String>| {
+                if let Some(val) = val {
+                    v_val[key] = json!(val);
+                }
+            };
+            put("Format_Info", v.format_info.clone());
+            put("Format_Profile", v.format_profile.clone());
+            put("Format_Version", v.format_version.clone());
+            put("Format_Level", v.format_level.clone());
+            put("Format_Tier", v.format_tier.clone());
+            put("Format_Commercial", v.format_commercial.clone());
+            put("CodecID", v.codec_id.clone());
+            put("CodecID_Info", v.codec_id_info.clone());
+            put("Duration", v.duration_ms.map(|d| (d / 1000.0).to_string()));
+            put("BitRate", v.bit_rate.map(|b| b.to_string()));
+            put(
+                "BitRate_Mode",
+                v.bit_rate_mode.map(|m| m.display_name().to_string()),
+            );
+            put("BitRate_Maximum", v.bit_rate_maximum.map(|b| b.to_string()));
+            put("Stored_Width", v.stored_width.map(|w| w.to_string()));
+            put("Stored_Height", v.stored_height.map(|h| h.to_string()));
+            put(
+                "PixelAspectRatio",
+                v.sample_aspect_ratio.map(|r| format!("{r:.3}")),
+            );
+            put(
+                "DisplayAspectRatio",
+                v.display_aspect_ratio.map(|r| format!("{r:.3}")),
+            );
+            put(
+                "FrameRate_Mode",
+                v.frame_rate_mode.map(|m| m.display_name().to_string()),
+            );
+            put("FrameRate", v.frame_rate.map(|f| format!("{f:.3}")));
+            put("FrameCount", v.frame_count.map(|c| c.to_string()));
+            put("Standard", v.standard.clone());
+            put("ColorSpace", v.color_space.clone());
+            put(
+                "ChromaSubsampling",
+                v.chroma_subsampling.map(|c| c.display_name().to_string()),
+            );
+            put("ScanType", v.scan_type.clone());
+            put("ScanOrder", v.scan_order.clone());
+            put("Compression_Mode", v.compression_mode.clone());
+            put("StreamSize", v.stream_size.map(|s| s.to_string()));
+            put("Encoded_Library", v.encoded_library.clone());
+            put("Encoded_Library_Name", v.encoded_library_name.clone());
+            put("Encoded_Library_Version", v.encoded_library_version.clone());
+            put(
+                "Encoded_Library_Settings",
+                v.encoded_library_settings.clone(),
+            );
+            put(
+                "colour_range",
+                v.color_range.map(|r| r.display_name().to_string()),
+            );
+            // An "Unspecified" colour tag carries no information, so it is left out
+            // rather than reported as if it were a real value.
+            put(
+                "colour_primaries",
+                v.color_primaries
+                    .map(|c| c.display_name().to_string())
+                    .filter(|n| n != "Unspecified"),
+            );
+            put(
+                "transfer_characteristics",
+                v.transfer_characteristics
+                    .map(|t| t.display_name().to_string())
+                    .filter(|n| n != "Unspecified"),
+            );
+            put(
+                "matrix_coefficients",
+                v.matrix_coefficients
+                    .map(|m| m.display_name().to_string())
+                    .filter(|n| n != "Unspecified"),
+            );
+            put("HDR_Format", v.hdr_format.clone());
+            put(
+                "HDR_Format_Compatibility",
+                v.hdr_format_compatibility.clone(),
+            );
+            put("Delay", v.delay_ms.map(|d| (d / 1000.0).to_string()));
+            put("Title", v.title.clone());
+            put("Language", v.language.clone());
+            v_val["Default"] = json!(if v.default_flag { "Yes" } else { "No" });
+            v_val["Forced"] = json!(if v.forced_flag { "Yes" } else { "No" });
+
+            if let Some(ref dv) = v.dolby_vision {
+                v_val["DolbyVision_Profile"] = json!(dv.profile.display_name());
+                v_val["DolbyVision_Level"] = json!(dv.level.to_string());
             }
-            if let Some(ref profile) = v.format_profile {
-                v_val["Format_Profile"] = json!(profile);
-            }
-            if let Some(ref hdr) = v.hdr_format {
-                v_val["HDR_Format"] = json!(hdr);
-            }
-            if let Some(fps) = v.frame_rate {
-                v_val["FrameRate"] = json!(fps.to_string());
-            }
-            if let Some(sub) = v.chroma_subsampling {
-                v_val["ChromaSubsampling"] = json!(sub.display_name());
-            }
-            if let Some(cp) = v.color_primaries {
-                v_val["colour_primaries"] = json!(cp.display_name());
-            }
-            if let Some(tc) = v.transfer_characteristics {
-                v_val["transfer_characteristics"] = json!(tc.display_name());
-            }
-            if let Some(mc) = v.matrix_coefficients {
-                v_val["matrix_coefficients"] = json!(mc.display_name());
+            for (k, val) in &v.extra {
+                v_val[k.as_str()] = json!(val);
             }
             tracks.push(v_val);
         }
@@ -99,42 +170,84 @@ impl JsonFormatter {
                 "Channels": a.channels.to_string(),
                 "SamplingRate": a.sampling_rate.to_string(),
             });
-            if let Some(ref info) = a.format_info {
-                a_val["Format_Info"] = json!(info);
+            let mut put = |key: &str, val: Option<String>| {
+                if let Some(val) = val {
+                    a_val[key] = json!(val);
+                }
+            };
+            put("Format_Info", a.format_info.clone());
+            put(
+                "Format_Profile",
+                a.format_profile
+                    .clone()
+                    .or_else(|| a.format.format_profile().map(str::to_string)),
+            );
+            put("Format_Commercial", a.format_commercial.clone());
+            put(
+                "Format_AdditionalFeatures",
+                a.format_additional_features.clone(),
+            );
+            put("CodecID", a.codec_id.clone());
+            put("CodecID_Info", a.codec_id_info.clone());
+            put("Duration", a.duration_ms.map(|d| (d / 1000.0).to_string()));
+            put("BitRate", a.bit_rate.map(|b| b.to_string()));
+            put(
+                "BitRate_Mode",
+                a.bit_rate_mode.map(|m| m.display_name().to_string()),
+            );
+            put("BitRate_Maximum", a.bit_rate_maximum.map(|b| b.to_string()));
+            put(
+                "ChannelLayout",
+                a.channel_layout
+                    .as_ref()
+                    .map(|l| l.display_name().to_string()),
+            );
+            put("ChannelPositions", a.channel_positions.clone());
+            put(
+                "SamplesPerFrame",
+                a.samples_per_frame.map(|s| s.to_string()),
+            );
+            put("SamplingCount", a.sampling_count.map(|s| s.to_string()));
+            put("FrameRate", a.frame_rate.map(|f| format!("{f:.3}")));
+            put("FrameCount", a.frame_count.map(|c| c.to_string()));
+            put("BitDepth", a.bit_depth.map(|d| d.to_string()));
+            put("Compression_Mode", a.compression_mode.clone());
+            put("StreamSize", a.stream_size.map(|s| s.to_string()));
+            put("Delay", a.delay_ms.map(|d| (d / 1000.0).to_string()));
+            put("Dialnorm", a.dialnorm_db.map(|d| d.to_string()));
+            put("Title", a.title.clone());
+            put("Language", a.language.clone());
+            if a.dolby_atmos_present {
+                a_val["Format_AdditionalFeatures"] = json!("Dolby Atmos");
             }
-            if let Some(ref layout) = a.channel_layout {
-                a_val["ChannelLayout"] = json!(layout.display_name());
-            }
-            if let Some(depth) = a.bit_depth {
-                a_val["BitDepth"] = json!(depth.to_string());
-            }
-            if let Some(bitrate) = a.bit_rate {
-                a_val["BitRate"] = json!(bitrate.to_string());
-            }
-            if let Some(ref lang) = a.language {
-                a_val["Language"] = json!(lang);
-            }
-            if let Some(ref title) = a.title {
-                a_val["Title"] = json!(title);
+            a_val["Default"] = json!(if a.default_flag { "Yes" } else { "No" });
+            a_val["Forced"] = json!(if a.forced_flag { "Yes" } else { "No" });
+            for (k, val) in &a.extra {
+                a_val[k.as_str()] = json!(val);
             }
             tracks.push(a_val);
         }
 
         // Subtitle tracks
-        for s in &report.texts {
-            let mut s_val = json!({
+        for t in &report.texts {
+            let mut t_val = json!({
                 "@type": "Text",
-                "StreamOrder": s.stream_id.to_string(),
-                "ID": s.stream_id.to_string(),
-                "Format": s.format.display_name(),
+                "StreamOrder": t.stream_id.to_string(),
+                "ID": t.stream_id.to_string(),
+                "Format": t.format.display_name(),
             });
-            if let Some(ref lang) = s.language {
-                s_val["Language"] = json!(lang);
-            }
-            if let Some(ref title) = s.title {
-                s_val["Title"] = json!(title);
-            }
-            tracks.push(s_val);
+            let mut put = |key: &str, val: Option<String>| {
+                if let Some(val) = val {
+                    t_val[key] = json!(val);
+                }
+            };
+            put("CodecID", t.codec_id.clone());
+            put("Duration", t.duration_ms.map(|d| (d / 1000.0).to_string()));
+            put("Title", t.title.clone());
+            put("Language", t.language.clone());
+            t_val["Default"] = json!(if t.default_flag { "Yes" } else { "No" });
+            t_val["Forced"] = json!(if t.forced_flag { "Yes" } else { "No" });
+            tracks.push(t_val);
         }
 
         let root = json!({

@@ -66,6 +66,8 @@ impl CafDemuxer {
                         payload[6], payload[7],
                     ]);
                     let format_id = &payload[8..12];
+                    audio_track.codec_id =
+                        Some(String::from_utf8_lossy(format_id).trim().to_string());
                     let format_flags =
                         u32::from_be_bytes([payload[12], payload[13], payload[14], payload[15]]);
                     let _bytes_per_packet =
@@ -90,6 +92,13 @@ impl CafDemuxer {
                         8 => Some(AudioChannelLayout::Surround7_1),
                         _ => Some(AudioChannelLayout::Stereo),
                     };
+
+                    // Uncompressed formats have a bit rate fixed by the sample format.
+                    if format_id == b"lpcm" && bits_per_channel > 0 && channels > 0 {
+                        audio_track.bit_rate =
+                            Some(sample_rate as u64 * channels as u64 * bits_per_channel as u64);
+                        audio_track.bit_rate_mode = Some(BitrateMode::Constant);
+                    }
 
                     match format_id {
                         b"lpcm" => {

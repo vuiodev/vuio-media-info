@@ -11,6 +11,7 @@ pub enum ContainerFormat {
     AVI,
     WAV,
     MPEGTS,
+    BDAV,
     MPEGPS,
     FLV,
     Ogg,
@@ -20,6 +21,7 @@ pub enum ContainerFormat {
     MP3,
     AAC,
     AC3,
+    EAC3,
     DTS,
     MPC,
     CAF,
@@ -49,31 +51,33 @@ impl ContainerFormat {
             Self::AVI => "AVI",
             Self::WAV => "Wave",
             Self::MPEGTS => "MPEG-TS",
+            Self::BDAV => "BDAV",
             Self::MPEGPS => "MPEG-PS",
             Self::FLV => "Flash Video",
             Self::Ogg => "Ogg",
             Self::MXF => "MXF",
-            Self::ASF => "Advanced Systems Format",
+            Self::ASF => "Windows Media",
             Self::FLAC => "FLAC",
             Self::MP3 => "MPEG Audio",
-            Self::AAC => "AAC",
+            Self::AAC => "ADTS",
             Self::AC3 => "AC-3",
+            Self::EAC3 => "E-AC-3",
             Self::DTS => "DTS",
             Self::MPC => "Musepack",
-            Self::CAF => "CoreAudio Format",
+            Self::CAF => "CAF",
             Self::DSF => "Direct Stream Digital",
             Self::DSDIFF => "DSDIFF",
             Self::APE => "Monkey's Audio",
             Self::WavPack => "WavPack",
             Self::AIFF => "AIFF",
-            Self::TrueAudio => "TrueAudio",
+            Self::TrueAudio => "TTA",
             Self::IVF => "IVF",
             Self::Y4M => "YUV4MPEG2",
             Self::AMR => "AMR",
-            Self::SRT => "SubRip Subtitle",
-            Self::ASS => "SubStation Alpha Subtitle",
-            Self::WebVTT => "WebVTT Subtitle",
-            Self::SUP => "Blu-ray PGS Subtitle",
+            Self::SRT => "SubRip",
+            Self::ASS => "ASS",
+            Self::WebVTT => "WebVTT",
+            Self::SUP => "PGS",
             Self::Unknown => "Unknown",
         }
     }
@@ -88,6 +92,7 @@ impl ContainerFormat {
             Self::AVI => &["avi", "divx"],
             Self::WAV => &["wav", "wave", "bwf", "rf64"],
             Self::MPEGTS => &["ts", "m2ts", "mts", "m2t"],
+            Self::BDAV => &["m2ts", "mts"],
             Self::MPEGPS => &["mpg", "mpeg", "vob", "evob"],
             Self::FLV => &["flv", "f4v"],
             Self::Ogg => &["ogg", "ogv", "oga", "ogx", "opus", "spx"],
@@ -96,7 +101,8 @@ impl ContainerFormat {
             Self::FLAC => &["flac", "fla"],
             Self::MP3 => &["mp3", "mp2", "mp1", "mpa"],
             Self::AAC => &["aac", "adts"],
-            Self::AC3 => &["ac3", "eac3", "ec3"],
+            Self::AC3 => &["ac3"],
+            Self::EAC3 => &["eac3", "ec3"],
             Self::DTS => &["dts", "dtshd", "dtsx"],
             Self::MPC => &["mpc", "mp+"],
             Self::CAF => &["caf"],
@@ -140,7 +146,7 @@ impl ContainerFormat {
 
 /// Known Video elementary stream codecs.
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VideoCodec {
     AVC,         // H.264
     HEVC,        // H.265
@@ -171,7 +177,7 @@ impl VideoCodec {
             Self::VP9 => "VP9",
             Self::VP8 => "VP8",
             Self::ProRes => "ProRes",
-            Self::MPEG1Video => "MPEG-1 Video",
+            Self::MPEG1Video => "MPEG Video",
             Self::MPEG2Video => "MPEG Video",
             Self::MPEG4Visual => "MPEG-4 Visual",
             Self::VC1 => "VC-1",
@@ -179,7 +185,7 @@ impl VideoCodec {
             Self::CineForm => "CineForm",
             Self::Theora => "Theora",
             Self::DV => "DV",
-            Self::DNxHD => "DNxHD",
+            Self::DNxHD => "VC-3",
             Self::FFV1 => "FFV1",
             Self::Raw => "Raw Video",
             Self::Other(name) => name.as_str(),
@@ -212,7 +218,7 @@ impl VideoCodec {
 
 /// Known Audio elementary stream codecs.
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub enum AudioCodec {
     AAC,
@@ -270,7 +276,7 @@ impl AudioCodec {
             Self::MPEGH => "MPEG-H 3D Audio",
             Self::AMR_NB => "AMR-NB",
             Self::AMR_WB => "AMR-WB",
-            Self::TTA => "TrueAudio",
+            Self::TTA => "TTA",
             Self::Other(name) => name.as_str(),
         }
     }
@@ -291,7 +297,7 @@ impl AudioCodec {
 
 /// Known Subtitle/Text codecs.
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SubtitleCodec {
     SubRip,      // SRT
     ASS,         // Advanced SubStation Alpha
@@ -349,3 +355,89 @@ impl std::fmt::Display for SubtitleCodec {
         write!(f, "{}", self.display_name())
     }
 }
+
+/// Serializes the codec enums as a flat display string rather than serde's default
+/// externally-tagged representation.
+///
+/// `Other(String)` would otherwise serialize as `{"Other": "..."}`, which any JSON
+/// consumer (the GUI, `-O json`) renders as an object rather than a codec name.
+macro_rules! codec_serde_as_str {
+    ($ty:ty, $($name:literal => $variant:expr),* $(,)?) => {
+        impl Serialize for $ty {
+            fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+                s.serialize_str(self.display_name())
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $ty {
+            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+                let raw = String::deserialize(d)?;
+                Ok(match raw.as_str() {
+                    $($name => $variant,)*
+                    _ => Self::Other(raw),
+                })
+            }
+        }
+    };
+}
+
+codec_serde_as_str!(VideoCodec,
+    "AVC" => Self::AVC,
+    "HEVC" => Self::HEVC,
+    "AV1" => Self::AV1,
+    "VP9" => Self::VP9,
+    "VP8" => Self::VP8,
+    "ProRes" => Self::ProRes,
+    "MPEG Video" => Self::MPEG2Video,
+    "MPEG-4 Visual" => Self::MPEG4Visual,
+    "VC-1" => Self::VC1,
+    "VVC" => Self::VVC,
+    "CineForm" => Self::CineForm,
+    "Theora" => Self::Theora,
+    "DV" => Self::DV,
+    "VC-3" => Self::DNxHD,
+    "FFV1" => Self::FFV1,
+    "Raw Video" => Self::Raw,
+);
+
+codec_serde_as_str!(AudioCodec,
+    "AAC" => Self::AAC,
+    "AC-3" => Self::AC3,
+    "E-AC-3" => Self::EAC3,
+    "TrueHD" => Self::TrueHD,
+    "DTS" => Self::DTS,
+    "DTS-HD" => Self::DTSHD,
+    "DTS:X" => Self::DTSX,
+    "FLAC" => Self::FLAC,
+    // All three MPEG audio layers share the display name "MPEG Audio"; the layer is
+    // carried by `format_profile()`, so decoding picks the most common one.
+    "MPEG Audio" => Self::MPEGAudioLayer3,
+    "Opus" => Self::Opus,
+    "Vorbis" => Self::Vorbis,
+    "PCM" => Self::PCM,
+    "ALAC" => Self::ALAC,
+    "WMA" => Self::WMA,
+    "Monkey's Audio" => Self::MonkeyAudio,
+    "Musepack" => Self::MPC,
+    "WavPack" => Self::WavPack,
+    "DSD" => Self::DSD,
+    "AC-4" => Self::AC4,
+    "MPEG-H 3D Audio" => Self::MPEGH,
+    "AMR-NB" => Self::AMR_NB,
+    "AMR-WB" => Self::AMR_WB,
+    "TTA" => Self::TTA,
+);
+
+codec_serde_as_str!(SubtitleCodec,
+    "SubRip" => Self::SubRip,
+    "ASS" => Self::ASS,
+    "SSA" => Self::SSA,
+    "PGS" => Self::PGS,
+    "VobSub" => Self::VobSub,
+    "WebVTT" => Self::WebVTT,
+    "TTML" => Self::TTML,
+    "EIA-608" => Self::EIA608,
+    "EIA-708" => Self::EIA708,
+    "DVB Subtitle" => Self::DVBSubtitle,
+    "Teletext" => Self::Teletext,
+);

@@ -12,13 +12,6 @@ Crossplatform GUI & CLI
 
 ## Key Features
 
-* **Blazing Fast Performance**:
-  * **44× faster** in CLI command-line execution and **1200× faster** internally (as a library) than C++ MediaInfoLib.
-  * Microsecond-level chunked header probing with zero-copy bitstream parsing and memory-mapped I/O (`memmap2`) fallback.
-  * Parallel multicore directory and batch scanning powered by `rayon` and lock-free filesystem traversal with `jwalk`.
-* **Pure Rust & Memory Safe**:
-  * 100% safe, modern Rust without global state, static mut, or unsafe pointer arithmetic.
-  * Sub-byte `MsbBitReader` and `LsbBitReader` with Exp-Golomb decoding, SIMD-accelerated NAL unescaping, and EBML vint decoding.
 * **Exhaustive Container & Demuxer Support**:
   * **ISOBMFF / MP4 / QuickTime** (`.mp4`, `.mov`, `.m4v`, `.m4a`, `.m4b`, `.qt`) — full atom tree decoding (`moov`, `trak`, `mdia`, `stbl`, `stsd`, `esds`, `pasp`, `clap`, `colr`, `dvcC`, `dvvC`, `hvcC`, `avcC`, `av1C`, `vp09`, `alac`).
   * **Matroska / WebM** (`.mkv`, `.mka`, `.mks`, `.mk3d`, `.webm`) — EBML parser, track headers, attachments & cover art, chapters, cue points.

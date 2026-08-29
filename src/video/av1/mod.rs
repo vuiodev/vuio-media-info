@@ -20,6 +20,52 @@ pub struct Av1SequenceHeader {
 }
 
 impl Av1SequenceHeader {
+    /// Locates the sequence header inside a stream of OBUs and parses it.
+    ///
+    /// A temporal unit normally opens with OBU_TEMPORAL_DELIMITER, so the sequence
+    /// header is rarely the first OBU in the buffer.
+    pub fn parse_stream(data: &[u8]) -> Result<Self> {
+        let mut offset = 0usize;
+        while offset < data.len() {
+            let header = data[offset];
+            let obu_type = (header >> 3) & 0x0F;
+            let has_extension = (header & 0x04) != 0;
+            let has_size = (header & 0x02) != 0;
+            let mut pos = offset + 1 + usize::from(has_extension);
+
+            let payload_size = if has_size {
+                let mut size = 0u64;
+                let mut shift = 0;
+                loop {
+                    let Some(&byte) = data.get(pos) else {
+                        return Self::parse(&data[offset..]);
+                    };
+                    pos += 1;
+                    size |= ((byte & 0x7F) as u64) << shift;
+                    shift += 7;
+                    if byte & 0x80 == 0 || shift >= 56 {
+                        break;
+                    }
+                }
+                size as usize
+            } else {
+                data.len().saturating_sub(pos)
+            };
+
+            if obu_type == 1 {
+                return Self::parse(&data[offset..]);
+            }
+
+            offset = pos.saturating_add(payload_size);
+            if payload_size == 0 && !has_size {
+                break;
+            }
+        }
+        Err(MediaInfoError::InvalidData(
+            "No AV1 sequence header OBU found".to_string(),
+        ))
+    }
+
     pub fn parse(raw_obu: &[u8]) -> Result<Self> {
         if raw_obu.is_empty() {
             return Err(MediaInfoError::UnexpectedEof {
@@ -65,6 +111,9 @@ impl Av1SequenceHeader {
         let _still_picture = r.read_bit()?;
         let reduced_still_picture = r.read_bit()?;
 
+        let mut decoder_model_info_present = false;
+        let mut buffer_delay_length = 0u8;
+
         if !reduced_still_picture {
             let timing_info_present = r.read_bit()?;
             if timing_info_present {
@@ -72,13 +121,14 @@ impl Av1SequenceHeader {
                 let _time_scale = r.read_u32_be()?;
                 let equal_picture_interval = r.read_bit()?;
                 if equal_picture_interval {
-                    let _ = r.read_ue();
+                    let _ = r.read_ue(); // num_ticks_per_picture_minus_1
                 }
-                let decoder_model_info_present = r.read_bit()?;
+                decoder_model_info_present = r.read_bit()?;
                 if decoder_model_info_present {
-                    let _ = r.read_bits(5); // buffer_delay_length_minus_1
-                    let _ = r.read_u32_be(); // num_units_in_decoding_tick
-                    let _ = r.read_bits(10); // buffer_removal_time_length_minus_1 + frame_presentation_time_length_minus_1
+                    buffer_delay_length = r.read_bits(5)? as u8 + 1;
+                    let _ = r.read_u32_be()?; // num_units_in_decoding_tick
+                    let _ = r.read_bits(5)?; // buffer_removal_time_length_minus_1
+                    let _ = r.read_bits(5)?; // frame_presentation_time_length_minus_1
                 }
             }
 
@@ -86,17 +136,28 @@ impl Av1SequenceHeader {
             let operating_points_cnt_minus_1 = r.read_bits(5)?;
             for _ in 0..=operating_points_cnt_minus_1 {
                 let _op_idc = r.read_bits(12)?;
-                let _seq_level_idx = r.read_bits(5)?;
-                if _seq_level_idx > 7 {
+                let seq_level_idx = r.read_bits(5)?;
+                if seq_level_idx > 7 {
                     let _seq_tier = r.read_bit()?;
+                }
+                if decoder_model_info_present {
+                    let decoder_model_present_for_op = r.read_bit()?;
+                    if decoder_model_present_for_op {
+                        // operating_parameters_info: two buffer delays and a flag.
+                        let _ = r.read_bits(buffer_delay_length)?;
+                        let _ = r.read_bits(buffer_delay_length)?;
+                        let _ = r.read_bit()?;
+                    }
                 }
                 if initial_display_delay_present {
                     let iddp = r.read_bit()?;
                     if iddp {
-                        let _ = r.read_bits(4);
+                        let _ = r.read_bits(4)?;
                     }
                 }
             }
+        } else {
+            let _seq_level_idx = r.read_bits(5)?;
         }
 
         let frame_width_bits_minus_1 = r.read_bits(4)?;
@@ -107,6 +168,51 @@ impl Av1SequenceHeader {
 
         let width = max_frame_width_minus_1 + 1;
         let height = max_frame_height_minus_1 + 1;
+
+        // The remaining sequence-level flags have to be stepped over exactly, because
+        // color_config follows them and every bit shifts the colour fields.
+        if !reduced_still_picture {
+            let frame_id_numbers_present = r.read_bit()?;
+            if frame_id_numbers_present {
+                let _ = r.read_bits(4)?; // delta_frame_id_length_minus_2
+                let _ = r.read_bits(3)?; // additional_frame_id_length_minus_1
+            }
+        }
+
+        let _use_128x128_superblock = r.read_bit()?;
+        let _enable_filter_intra = r.read_bit()?;
+        let _enable_intra_edge_filter = r.read_bit()?;
+
+        if !reduced_still_picture {
+            let _enable_interintra_compound = r.read_bit()?;
+            let _enable_masked_compound = r.read_bit()?;
+            let _enable_warped_motion = r.read_bit()?;
+            let _enable_dual_filter = r.read_bit()?;
+            let enable_order_hint = r.read_bit()?;
+            if enable_order_hint {
+                let _enable_jnt_comp = r.read_bit()?;
+                let _enable_ref_frame_mvs = r.read_bit()?;
+            }
+            let seq_choose_screen_content_tools = r.read_bit()?;
+            let seq_force_screen_content_tools = if seq_choose_screen_content_tools {
+                2
+            } else {
+                r.read_bit()? as u8
+            };
+            if seq_force_screen_content_tools > 0 {
+                let seq_choose_integer_mv = r.read_bit()?;
+                if !seq_choose_integer_mv {
+                    let _seq_force_integer_mv = r.read_bit()?;
+                }
+            }
+            if enable_order_hint {
+                let _order_hint_bits_minus_1 = r.read_bits(3)?;
+            }
+        }
+
+        let _enable_superres = r.read_bit()?;
+        let _enable_cdef = r.read_bit()?;
+        let _enable_restoration = r.read_bit()?;
 
         // Color Config
         let high_bitdepth = r.read_bit()?;
@@ -126,9 +232,10 @@ impl Av1SequenceHeader {
         };
 
         let color_description_present = r.read_bit()?;
-        let mut color_primaries = ColorPrimaries::BT709;
-        let mut transfer_characteristics = TransferCharacteristics::BT709;
-        let mut matrix_coefficients = MatrixCoefficients::BT709;
+        // Absent a colour description the spec leaves all three unspecified.
+        let mut color_primaries = ColorPrimaries::Unspecified;
+        let mut transfer_characteristics = TransferCharacteristics::Unspecified;
+        let mut matrix_coefficients = MatrixCoefficients::Unspecified;
 
         if color_description_present {
             let cp = r.read_u8()?;

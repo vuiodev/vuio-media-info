@@ -173,8 +173,8 @@ impl MatrixCoefficients {
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::BT709 => "BT.709",
-            Self::BT2020_NCL => "BT.2020 non-constant luminance",
-            Self::BT2020_CL => "BT.2020 constant luminance",
+            Self::BT2020_NCL => "BT.2020 non-constant",
+            Self::BT2020_CL => "BT.2020 constant",
             Self::SMPTE170M => "BT.601",
             Self::Identity => "Identity / RGB",
             Self::ICTCP => "ICtCp",
@@ -192,6 +192,7 @@ pub enum ChromaSubsampling {
     YUV420,
     YUV422,
     YUV444,
+    YUV411,
     Monochrome,
     RGB,
     Other,
@@ -203,6 +204,7 @@ impl ChromaSubsampling {
             Self::YUV420 => "4:2:0",
             Self::YUV422 => "4:2:2",
             Self::YUV444 => "4:4:4",
+            Self::YUV411 => "4:1:1",
             Self::Monochrome => "Monochrome",
             Self::RGB => "RGB / 4:4:4",
             Self::Other => "Other",

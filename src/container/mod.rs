@@ -23,6 +23,7 @@ pub mod flv;
 pub mod isobmff;
 pub mod ivf;
 pub mod matroska;
+pub mod mpeg_ps;
 pub mod mpeg_ts;
 pub mod mxf;
 pub mod ogg;
@@ -42,7 +43,8 @@ pub use flv::FlvDemuxer;
 pub use isobmff::IsobmffDemuxer;
 pub use ivf::IvfDemuxer;
 pub use matroska::MatroskaDemuxer;
-pub use mpeg_ts::MpegTsDemuxer;
+pub use mpeg_ps::MpegPsDemuxer;
+use mpeg_ts::MpegTsDemuxer;
 pub use mxf::MxfDemuxer;
 pub use ogg::OggDemuxer;
 pub use riff::RiffDemuxer;
@@ -64,6 +66,88 @@ pub struct ContainerParser;
 
 impl ContainerParser {
     pub fn parse(buffer: &[u8]) -> Result<MediaReport> {
+        let mut report = Self::demux(buffer)?;
+        Self::finalize(&mut report);
+        Ok(report)
+    }
+
+    /// Fills in track properties that follow from what the demuxers already decoded, so
+    /// each container does not have to repeat the same derivations.
+    fn finalize(report: &mut MediaReport) {
+        for v in &mut report.videos {
+            if v.format_version.is_none() {
+                v.format_version = match v.format {
+                    VideoCodec::MPEG1Video => Some("1".to_string()),
+                    VideoCodec::MPEG2Video => Some("2".to_string()),
+                    _ => None,
+                };
+            }
+
+            // 525-line DV samples chroma at 4:1:1, 625-line DV at 4:2:0.
+            if v.format == VideoCodec::DV && v.chroma_subsampling.is_none() && v.height > 0 {
+                v.chroma_subsampling = Some(if v.height >= 550 {
+                    ChromaSubsampling::YUV420
+                } else {
+                    ChromaSubsampling::YUV411
+                });
+            }
+
+            // DV's video bit rate follows from its fixed DIF structure rather than from
+            // the essence size, which also carries audio, subcode and VAUX blocks.
+            if v.format == VideoCodec::DV {
+                let frame_bytes = match (v.stream_size, v.duration_ms, v.frame_rate) {
+                    (Some(size), Some(ms), Some(fps)) if ms > 0.0 && fps > 0.0 => {
+                        let frames = (ms / 1000.0 * fps).round() as u64;
+                        (frames > 0).then(|| size / frames)
+                    }
+                    _ => None,
+                };
+                if let Some(fps) = v.frame_rate {
+                    if let Some(rate) = crate::video::dv_video_bitrate(v.height, fps, frame_bytes) {
+                        v.bit_rate = Some(rate);
+                    }
+                }
+            }
+
+            // Broadcast standard, from the SD frame geometry and rate.
+            if v.standard.is_none() {
+                v.standard = match (v.width, v.height, v.frame_rate) {
+                    (720 | 704 | 352, 480 | 486 | 240, Some(f))
+                        if (f - 30.0 / 1.001).abs() < 0.1 || (f - 30.0).abs() < 0.1 =>
+                    {
+                        Some("NTSC")
+                    }
+                    (720 | 704 | 352, 576 | 288, Some(f)) if (f - 25.0).abs() < 0.1 => Some("PAL"),
+                    _ => None,
+                }
+                .map(str::to_string);
+            }
+
+            // Video that does not signal a range is limited range by convention.
+            if v.color_range.is_none()
+                && !matches!(v.chroma_subsampling, Some(ChromaSubsampling::RGB))
+            {
+                v.color_range = Some(ColorRange::Limited);
+            }
+
+            if v.color_space.is_none() && !matches!(v.format, VideoCodec::ProRes) {
+                v.color_space = Some(
+                    match v.chroma_subsampling {
+                        Some(ChromaSubsampling::RGB) => "RGB",
+                        _ => "YUV",
+                    }
+                    .to_string(),
+                );
+            }
+
+            if v.display_aspect_ratio.is_none() && v.width > 0 && v.height > 0 {
+                let par = v.sample_aspect_ratio.unwrap_or(1.0);
+                v.display_aspect_ratio = Some((v.width as f64 * par) / v.height as f64);
+            }
+        }
+    }
+
+    fn demux(buffer: &[u8]) -> Result<MediaReport> {
         let format = FormatDetector::detect(buffer);
 
         match format {
@@ -74,7 +158,8 @@ impl ContainerParser {
                 MatroskaDemuxer::parse_buffer(buffer)
             }
             ContainerFormat::AVI | ContainerFormat::WAV => RiffDemuxer::parse_buffer(buffer),
-            ContainerFormat::MPEGTS => MpegTsDemuxer::parse_buffer(buffer),
+            ContainerFormat::MPEGTS | ContainerFormat::BDAV => MpegTsDemuxer::parse_buffer(buffer),
+            ContainerFormat::MPEGPS => MpegPsDemuxer::parse_buffer(buffer),
             ContainerFormat::Ogg => OggDemuxer::parse_buffer(buffer),
             ContainerFormat::FLV => FlvDemuxer::parse_buffer(buffer),
             ContainerFormat::ASF => AsfDemuxer::parse_buffer(buffer),
@@ -95,7 +180,7 @@ impl ContainerParser {
             ContainerFormat::FLAC => Self::parse_flac_stream(buffer),
             ContainerFormat::MP3 => Self::parse_mp3_stream(buffer),
             ContainerFormat::AAC => Self::parse_aac_stream(buffer),
-            ContainerFormat::AC3 => Self::parse_ac3_stream(buffer),
+            ContainerFormat::AC3 | ContainerFormat::EAC3 => Self::parse_ac3_stream(buffer),
             ContainerFormat::DTS => Self::parse_dts_stream(buffer),
             ContainerFormat::MPC => Self::parse_mpc_stream(buffer),
             ContainerFormat::Unknown => {
@@ -134,10 +219,6 @@ impl ContainerParser {
                     "Unrecognized media container or bitstream format".to_string(),
                 ))
             }
-            _ => Err(MediaInfoError::UnsupportedFormat(format!(
-                "Parser for {:?} not implemented yet",
-                format
-            ))),
         }
     }
 
@@ -158,14 +239,34 @@ impl ContainerParser {
         a.duration_ms = Some(streaminfo.duration_ms);
         a.compression_mode = Some("Lossless".to_string());
 
+        // The audio frames start after the metadata blocks; counting the blocks keeps
+        // seektables and padding out of the stream bit rate.
+        let audio_size = Self::flac_audio_size(data);
+        a.stream_size = Some(audio_size);
         if streaminfo.duration_ms > 0.0 {
-            let br = ((data.len() as u64 * 8) as f64 / (streaminfo.duration_ms / 1000.0)) as u64;
-            a.bit_rate = Some(br);
-            report.general.overall_bitrate = Some(br);
+            let seconds = streaminfo.duration_ms / 1000.0;
+            a.bit_rate = Some((audio_size as f64 * 8.0 / seconds) as u64);
+            report.general.overall_bitrate = Some(((data.len() as f64 * 8.0) / seconds) as u64);
         }
 
         report.audios.push(a);
         Ok(report)
+    }
+
+    /// Byte length of the FLAC audio frames, excluding the metadata block chain.
+    fn flac_audio_size(data: &[u8]) -> u64 {
+        let mut offset = if data.starts_with(b"fLaC") { 4 } else { 0 };
+        while offset + 4 <= data.len() {
+            let header = data[offset];
+            let last = (header & 0x80) != 0;
+            let len = u32::from_be_bytes([0, data[offset + 1], data[offset + 2], data[offset + 3]])
+                as usize;
+            offset += 4 + len;
+            if last {
+                break;
+            }
+        }
+        (data.len().saturating_sub(offset)) as u64
     }
 
     fn parse_mp3_stream(data: &[u8]) -> Result<MediaReport> {
@@ -290,6 +391,7 @@ impl ContainerParser {
         a.sampling_rate = aac.sampling_rate;
         a.channels = aac.channels;
         a.channel_layout = Some(aac.channel_layout);
+        a.codec_id = Some(aac.audio_object_type.to_string());
         a.bit_rate = Some(bit_rate);
         if dur_ms > 0.0 {
             a.duration_ms = Some(dur_ms);
@@ -305,7 +407,7 @@ impl ContainerParser {
         let ac3 = Ac3Header::parse(data)?;
         let mut report = MediaReport::new();
         report.general.format = if ac3.is_eac3 {
-            ContainerFormat::MPEG4
+            ContainerFormat::EAC3
         } else {
             ContainerFormat::AC3
         };

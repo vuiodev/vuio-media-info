@@ -1,0 +1,458 @@
+[
+ {
+  "file": "aiff.aif",
+  "issues": []
+ },
+ {
+  "file": "aiff.aifc",
+  "issues": []
+ },
+ {
+  "file": "aiff.aiff",
+  "issues": []
+ },
+ {
+  "file": "asf.asf",
+  "issues": []
+ },
+ {
+  "file": "asf.wma",
+  "issues": []
+ },
+ {
+  "file": "asf.wmv",
+  "issues": []
+ },
+ {
+  "file": "caf.caf",
+  "issues": []
+ },
+ {
+  "file": "caf_alac.caf",
+  "issues": []
+ },
+ {
+  "file": "cineform.mov",
+  "issues": []
+ },
+ {
+  "file": "dnxhd.mkv",
+  "issues": []
+ },
+ {
+  "file": "dv.avi",
+  "issues": []
+ },
+ {
+  "file": "dv.mxf",
+  "issues": []
+ },
+ {
+  "file": "dv_alt.avi",
+  "issues": []
+ },
+ {
+  "file": "dv_black.avi",
+  "issues": []
+ },
+ {
+  "file": "dv_pal.avi",
+  "issues": []
+ },
+ {
+  "file": "es.aac",
+  "issues": []
+ },
+ {
+  "file": "es.ac3",
+  "issues": []
+ },
+ {
+  "file": "es.dts",
+  "issues": []
+ },
+ {
+  "file": "es.eac3",
+  "issues": []
+ },
+ {
+  "file": "es.ec3",
+  "issues": []
+ },
+ {
+  "file": "es.flac",
+  "issues": []
+ },
+ {
+  "file": "es.mp1",
+  "issues": []
+ },
+ {
+  "file": "es.mp2",
+  "issues": []
+ },
+ {
+  "file": "es.mp3",
+  "issues": []
+ },
+ {
+  "file": "ffv1.mkv",
+  "issues": []
+ },
+ {
+  "file": "flv.f4v",
+  "issues": []
+ },
+ {
+  "file": "flv.flv",
+  "issues": []
+ },
+ {
+  "file": "iso.m4v",
+  "issues": []
+ },
+ {
+  "file": "iso.qt",
+  "issues": []
+ },
+ {
+  "file": "iso_aac.m4a",
+  "issues": []
+ },
+ {
+  "file": "iso_aac.m4b",
+  "issues": []
+ },
+ {
+  "file": "iso_ac3.mp4",
+  "issues": []
+ },
+ {
+  "file": "iso_alac.m4a",
+  "issues": []
+ },
+ {
+  "file": "iso_av1.mp4",
+  "issues": []
+ },
+ {
+  "file": "iso_h264.mov",
+  "issues": []
+ },
+ {
+  "file": "iso_h264_aac.mp4",
+  "issues": []
+ },
+ {
+  "file": "iso_hevc.mp4",
+  "issues": []
+ },
+ {
+  "file": "iso_hevc10.mp4",
+  "issues": []
+ },
+ {
+  "file": "iso_mpeg4v.mp4",
+  "issues": []
+ },
+ {
+  "file": "iso_opus.mp4",
+  "issues": []
+ },
+ {
+  "file": "iso_vp9.mp4",
+  "issues": []
+ },
+ {
+  "file": "ivf_av1.ivf",
+  "issues": []
+ },
+ {
+  "file": "ivf_vp9.ivf",
+  "issues": []
+ },
+ {
+  "file": "mka_flac.mka",
+  "issues": []
+ },
+ {
+  "file": "mkv3d.mk3d",
+  "issues": []
+ },
+ {
+  "file": "mkv_ass.mkv",
+  "issues": []
+ },
+ {
+  "file": "mkv_av1.mkv",
+  "issues": []
+ },
+ {
+  "file": "mkv_h264_aac.mkv",
+  "issues": []
+ },
+ {
+  "file": "mkv_hevc.mkv",
+  "issues": []
+ },
+ {
+  "file": "mkv_subs.mkv",
+  "issues": []
+ },
+ {
+  "file": "mkv_tags.mkv",
+  "issues": []
+ },
+ {
+  "file": "mkv_truehd.mka",
+  "issues": []
+ },
+ {
+  "file": "mp4_subs.mp4",
+  "issues": []
+ },
+ {
+  "file": "mxf_dnxhd.mxf",
+  "issues": []
+ },
+ {
+  "file": "mxf_mpeg2.mxf",
+  "issues": []
+ },
+ {
+  "file": "ogg.ogx",
+  "issues": []
+ },
+ {
+  "file": "ogg.opus",
+  "issues": []
+ },
+ {
+  "file": "ogg_flac.oga",
+  "issues": []
+ },
+ {
+  "file": "ogg_vorbis.ogg",
+  "issues": []
+ },
+ {
+  "file": "pr_169.mov",
+  "issues": []
+ },
+ {
+  "file": "pr_alpha0.mov",
+  "issues": []
+ },
+ {
+  "file": "pr_alpha16.mov",
+  "issues": []
+ },
+ {
+  "file": "pr_alpha8.mov",
+  "issues": []
+ },
+ {
+  "file": "pr_anamorphic.mov",
+  "issues": []
+ },
+ {
+  "file": "pr_bff.mov",
+  "issues": []
+ },
+ {
+  "file": "pr_fps23976.mov",
+  "issues": []
+ },
+ {
+  "file": "pr_fps24.mov",
+  "issues": []
+ },
+ {
+  "file": "pr_fps2997.mov",
+  "issues": []
+ },
+ {
+  "file": "pr_fps50.mov",
+  "issues": []
+ },
+ {
+  "file": "pr_fps5994.mov",
+  "issues": []
+ },
+ {
+  "file": "pr_fps60.mov",
+  "issues": []
+ },
+ {
+  "file": "pr_hdr.mov",
+  "issues": []
+ },
+ {
+  "file": "pr_tff.mov",
+  "issues": []
+ },
+ {
+  "file": "prores_alpha.mov",
+  "issues": []
+ },
+ {
+  "file": "prores_in.mkv",
+  "issues": []
+ },
+ {
+  "file": "prores_in.mp4",
+  "issues": []
+ },
+ {
+  "file": "prores_p0.mov",
+  "issues": []
+ },
+ {
+  "file": "prores_p1.mov",
+  "issues": []
+ },
+ {
+  "file": "prores_p2.mov",
+  "issues": []
+ },
+ {
+  "file": "prores_p3.mov",
+  "issues": []
+ },
+ {
+  "file": "prores_p4.mov",
+  "issues": []
+ },
+ {
+  "file": "prores_p5.mov",
+  "issues": []
+ },
+ {
+  "file": "prores_tagged.mov",
+  "issues": []
+ },
+ {
+  "file": "ps.evob",
+  "issues": []
+ },
+ {
+  "file": "ps.vob",
+  "issues": []
+ },
+ {
+  "file": "ps_mpeg1.mpg",
+  "issues": []
+ },
+ {
+  "file": "ps_mpeg2.mpeg",
+  "issues": []
+ },
+ {
+  "file": "riff.avi",
+  "issues": []
+ },
+ {
+  "file": "riff.bwf",
+  "issues": []
+ },
+ {
+  "file": "riff.rf64",
+  "issues": []
+ },
+ {
+  "file": "riff.wave",
+  "issues": []
+ },
+ {
+  "file": "riff_f32.wav",
+  "issues": []
+ },
+ {
+  "file": "riff_pcm16.wav",
+  "issues": []
+ },
+ {
+  "file": "riff_pcm24.wav",
+  "issues": []
+ },
+ {
+  "file": "sub.ass",
+  "issues": []
+ },
+ {
+  "file": "sub.srt",
+  "issues": []
+ },
+ {
+  "file": "sub.ssa",
+  "issues": []
+ },
+ {
+  "file": "sub.vtt",
+  "issues": []
+ },
+ {
+  "file": "ta.tta",
+  "issues": []
+ },
+ {
+  "file": "tag_ape.wv",
+  "issues": []
+ },
+ {
+  "file": "tag_id3v23.mp3",
+  "issues": []
+ },
+ {
+  "file": "tag_id3v24.mp3",
+  "issues": []
+ },
+ {
+  "file": "tag_ilst.m4a",
+  "issues": []
+ },
+ {
+  "file": "tag_vorbis.flac",
+  "issues": []
+ },
+ {
+  "file": "tag_vorbis.ogg",
+  "issues": []
+ },
+ {
+  "file": "ts.m2t",
+  "issues": []
+ },
+ {
+  "file": "ts.mts",
+  "issues": []
+ },
+ {
+  "file": "ts_h264.m2ts",
+  "issues": []
+ },
+ {
+  "file": "ts_h264.ts",
+  "issues": []
+ },
+ {
+  "file": "ts_hevc.ts",
+  "issues": []
+ },
+ {
+  "file": "wavpack.wv",
+  "issues": []
+ },
+ {
+  "file": "wm_vp8_vorbis.webm",
+  "issues": []
+ },
+ {
+  "file": "wm_vp9_opus.webm",
+  "issues": []
+ },
+ {
+  "file": "y4m.y4m",
+  "issues": []
+ }
+]

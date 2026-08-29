@@ -88,18 +88,32 @@ impl Ac3Header {
         } else {
             is_eac3 = true;
             let mut r2 = MsbBitReader::new(&data[2..]);
-            let _strmtyp = r2.read_bits(2)?;
+            let _strmtyp = r2.read_bits(2)? as u8;
             let _substreamid = r2.read_bits(3)?;
             let frmsiz = r2.read_bits(11)? as usize;
             frame_size = (frmsiz + 1) * 2;
 
+            // fscod == 3 selects the half-rate table and implies six blocks per frame.
             let fscod_eac3 = r2.read_bits(2)? as usize;
+            let num_blocks;
             if fscod_eac3 == 3 {
-                let _fscod2 = r2.read_bits(2)?;
-                sample_rate = 24000;
+                let fscod2 = r2.read_bits(2)? as usize;
+                sample_rate = match fscod2 {
+                    0 => 24000,
+                    1 => 22050,
+                    _ => 16000,
+                };
+                num_blocks = 6;
             } else {
-                let _numblkscod = r2.read_bits(2)?;
+                let numblkscod = r2.read_bits(2)? as usize;
                 sample_rate = AC3_SAMPLE_RATES[fscod_eac3];
+                num_blocks = [1usize, 2, 3, 6][numblkscod];
+            }
+
+            // Each block carries 256 samples, so the frame duration fixes the bit rate.
+            let samples_per_frame = num_blocks * 256;
+            if samples_per_frame > 0 && sample_rate > 0 {
+                bit_rate = (frame_size as u64 * 8 * sample_rate as u64) / samples_per_frame as u64;
             }
 
             let acmod = r2.read_bits(3)? as u8;
@@ -112,10 +126,11 @@ impl Ac3Header {
             channels = base_channels;
             channel_layout = layout;
 
-            let search_window = &data[..data.len().min(4096)];
-            if search_window
-                .windows(2)
-                .any(|w| w == [0x77, 0x0B] || w == [0xA5, 0x5A])
+            // Joint Object Coding is signalled in addbsi, at the very end of the BSI,
+            // so every intervening conditional field has to be stepped over. A byte-pattern
+            // search over the frame cannot distinguish it from ordinary audio data.
+            if let Ok(true) =
+                Self::eac3_has_joc(&mut r2, acmod, has_lfe, _strmtyp, num_blocks, fscod_eac3)
             {
                 dolby_atmos_present = true;
             }
@@ -152,5 +167,141 @@ impl Ac3Header {
         } else {
             (chans, layout)
         }
+    }
+
+    /// Walks the remainder of an E-AC-3 BSI to `addbsi` and reports whether it carries
+    /// the Dolby Atmos JOC extension.
+    ///
+    /// The reader must be positioned immediately after `dialnorm`.
+    fn eac3_has_joc(
+        r: &mut MsbBitReader,
+        acmod: u8,
+        lfeon: bool,
+        strmtyp: u8,
+        num_blocks: usize,
+        fscod: usize,
+    ) -> Result<bool> {
+        let numblkscod = match num_blocks {
+            1 => 0,
+            2 => 1,
+            3 => 2,
+            _ => 3,
+        };
+
+        if r.read_bit()? {
+            r.read_bits(8)?; // compr
+        }
+        if acmod == 0 {
+            r.read_bits(5)?; // dialnorm2
+            if r.read_bit()? {
+                r.read_bits(8)?; // compr2
+            }
+        }
+        if strmtyp == 1 && r.read_bit()? {
+            r.read_bits(16)?; // chanmap
+        }
+
+        // Mixing metadata
+        if r.read_bit()? {
+            if acmod > 2 {
+                r.read_bits(2)?; // dmixmod
+            }
+            if (acmod & 0x01) != 0 && acmod > 2 {
+                r.read_bits(6)?; // ltrtcmixlev + lorocmixlev
+            }
+            if (acmod & 0x04) != 0 {
+                r.read_bits(6)?; // ltrtsurmixlev + lorosurmixlev
+            }
+            if lfeon && r.read_bit()? {
+                r.read_bits(5)?; // lfemixlevcod
+            }
+            if strmtyp == 0 {
+                if r.read_bit()? {
+                    r.read_bits(6)?; // pgmscl
+                }
+                if acmod == 0 && r.read_bit()? {
+                    r.read_bits(6)?; // pgmscl2
+                }
+                if r.read_bit()? {
+                    r.read_bits(6)?; // extpgmscl
+                }
+                match r.read_bits(2)? {
+                    1 => {
+                        r.read_bits(5)?; // premixcmpsel + drcsrc + premixcmpscl
+                    }
+                    2 => {
+                        r.read_bits(12)?; // mixdata
+                    }
+                    3 => {
+                        let mixdeflen = r.read_bits(5)? as usize;
+                        for _ in 0..(mixdeflen + 2) {
+                            r.read_bits(8)?;
+                        }
+                    }
+                    _ => {}
+                }
+                if acmod < 2 {
+                    if r.read_bit()? {
+                        r.read_bits(14)?; // panmean + paninfo
+                    }
+                    if acmod == 0 && r.read_bit()? {
+                        r.read_bits(14)?; // panmean2 + paninfo2
+                    }
+                }
+                if r.read_bit()? {
+                    if numblkscod == 0 {
+                        r.read_bits(5)?;
+                    } else {
+                        for _ in 0..num_blocks {
+                            if r.read_bit()? {
+                                r.read_bits(5)?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Informational metadata
+        if r.read_bit()? {
+            r.read_bits(5)?; // bsmod + copyrightb + origbs
+            if acmod == 2 {
+                r.read_bits(4)?; // dsurmod + dheadphonmod
+            }
+            if acmod >= 6 {
+                r.read_bits(2)?; // dsurexmod
+            }
+            if r.read_bit()? {
+                r.read_bits(8)?; // mixlevel + roomtyp + adconvtyp
+            }
+            if acmod == 0 && r.read_bit()? {
+                r.read_bits(8)?;
+            }
+            if fscod < 3 {
+                r.read_bit()?; // sourcefscod
+            }
+        }
+
+        if strmtyp == 0 && numblkscod != 3 {
+            r.read_bit()?; // convsync
+        }
+        if strmtyp == 2 {
+            let blkid = if numblkscod == 3 { true } else { r.read_bit()? };
+            if blkid {
+                r.read_bits(6)?; // frmsizecod
+            }
+        }
+
+        if !r.read_bit()? {
+            return Ok(false); // addbsie
+        }
+        let addbsil = r.read_bits(6)? as usize;
+        if addbsil == 0 {
+            return Ok(false);
+        }
+        // EC3 extension type A (bit 7 of the first addbsi byte) marks JOC; the following
+        // byte then carries the object complexity.
+        let first = r.read_bits(8)? as u8;
+        Ok((first & 0x80) != 0)
     }
 }

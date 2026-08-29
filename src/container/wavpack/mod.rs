@@ -35,8 +35,8 @@ impl WavpackDemuxer {
         report.general.file_size = data.len() as u64;
 
         let version = u16::from_le_bytes([data[8], data[9]]);
-        report.general.format_version =
-            Some(format!("{}.{}", (version >> 8) & 0xFF, version & 0xFF));
+        let version_string = format!("{}.{}", (version >> 8) & 0xFF, version & 0xFF);
+        report.general.format_version = Some(version_string.clone());
 
         let total_samples = u32::from_le_bytes([data[12], data[13], data[14], data[15]]);
         let flags = u32::from_le_bytes([data[24], data[25], data[26], data[27]]);
@@ -58,6 +58,7 @@ impl WavpackDemuxer {
 
         let mut a = AudioTrack::default();
         a.format = AudioCodec::WavPack;
+        a.format_profile = Some(version_string);
         a.format_info = Some(if is_float {
             "WavPack (32-bit Float)".to_string()
         } else {

@@ -3,6 +3,7 @@ use crate::core::{
     models::*,
     types::*,
 };
+use std::collections::HashMap;
 
 /// ASF (Advanced Systems Format - WMA, WMV, VC-1) Container Demuxer.
 pub struct AsfDemuxer;
@@ -28,6 +29,19 @@ const GUID_EXTENDED_CONTENT: [u8; 16] = [
 const GUID_STREAM_AUDIO: [u8; 16] = [
     0x40, 0x9E, 0x69, 0xF8, 0x4D, 0x5B, 0xCF, 0x11, 0xA8, 0xFD, 0x00, 0x80, 0x5F, 0x5C, 0x44, 0x2B,
 ];
+/// ASF_Header_Extension_Object
+const GUID_HEADER_EXTENSION: [u8; 16] = [
+    0xB5, 0x03, 0xBF, 0x5F, 0x2E, 0xA9, 0xCF, 0x11, 0x8E, 0xE3, 0x00, 0xC0, 0x0C, 0x20, 0x53, 0x65,
+];
+/// ASF_Extended_Stream_Properties_Object
+const GUID_EXTENDED_STREAM_PROPERTIES: [u8; 16] = [
+    0xCB, 0xA5, 0xE6, 0x14, 0x72, 0xC6, 0x32, 0x43, 0x83, 0x99, 0xA9, 0x69, 0x52, 0x06, 0x5B, 0x5A,
+];
+/// ASF_Stream_Bitrate_Properties_Object
+const GUID_STREAM_BITRATE: [u8; 16] = [
+    0xCE, 0x75, 0xF8, 0x7B, 0x8D, 0x46, 0xD1, 0x11, 0x8D, 0x82, 0x00, 0x60, 0x97, 0xC9, 0xA2, 0xB2,
+];
+
 const GUID_STREAM_VIDEO: [u8; 16] = [
     0xC0, 0xEF, 0x19, 0xBC, 0x4D, 0x5B, 0xCF, 0x11, 0xA8, 0xFD, 0x00, 0x80, 0x5F, 0x5C, 0x44, 0x2B,
 ];
@@ -93,12 +107,22 @@ impl AsfDemuxer {
                     Self::parse_content_description(payload, &mut report);
                 } else if guid == GUID_EXTENDED_CONTENT && payload.len() >= 2 {
                     Self::parse_extended_content_description(payload, &mut report);
+                } else if guid == GUID_STREAM_BITRATE && payload.len() >= 2 {
+                    Self::parse_stream_bitrate(payload, &mut report);
+                } else if guid == GUID_HEADER_EXTENSION && payload.len() > 22 {
+                    // The extension data area holds further top-level objects.
+                    Self::parse_header_extension(&payload[22..], &mut report);
                 }
             }
 
             offset += obj_size;
             parsed_objects += 1;
         }
+
+        // The header is followed by the Data Object, whose packets carry the per-stream
+        // payloads. Walking them is the only way to learn a stream's real size and, for
+        // video, its frame rate, when the optional Extended Stream Properties is absent.
+        Self::parse_data_object(data, header_size, &mut report);
 
         // Set overall bitrate from duration if available
         if let Some(dur_ms) = report.general.duration_ms {
@@ -109,6 +133,187 @@ impl AsfDemuxer {
         }
 
         Ok(report)
+    }
+
+    /// Walks the Data Object packets, tallying payload bytes per stream and recording
+    /// the presentation time of each media object so frame rates can be derived.
+    fn parse_data_object(data: &[u8], header_size: usize, report: &mut MediaReport) {
+        let packet_size: usize = match report.general.extra.get("PacketSize") {
+            Some(v) => match v.parse() {
+                Ok(n) if n > 0 => n,
+                _ => return,
+            },
+            None => return,
+        };
+
+        // Data Object: GUID(16) size(8) FileID(16) TotalDataPackets(8) Reserved(2).
+        let Some(header) = data.get(header_size..header_size + 50) else {
+            return;
+        };
+        let total_packets = u64::from_le_bytes([
+            header[40], header[41], header[42], header[43], header[44], header[45], header[46],
+            header[47],
+        ]);
+        let base = header_size + 50;
+
+        let mut payload_bytes: HashMap<u8, u64> = HashMap::new();
+        // First and last media object presentation time, plus a count, per stream.
+        let mut timing: HashMap<u8, (u32, u32, u64)> = HashMap::new();
+
+        for i in 0..total_packets {
+            let start = base + (i as usize) * packet_size;
+            let Some(packet) = data.get(start..start + packet_size) else {
+                break;
+            };
+            Self::parse_data_packet(packet, &mut payload_bytes, &mut timing);
+        }
+
+        let seconds = report.general.duration_ms.unwrap_or(0.0) / 1000.0;
+        for v in &mut report.videos {
+            let Ok(stream) = u8::try_from(v.stream_id) else {
+                continue;
+            };
+            if let Some(&bytes) = payload_bytes.get(&stream) {
+                v.stream_size = Some(bytes);
+                if v.bit_rate.is_none() && seconds > 0.0 {
+                    v.bit_rate = Some((bytes as f64 * 8.0 / seconds) as u64);
+                }
+            }
+            if v.frame_rate.is_none() {
+                if let Some(&(first, last, count)) = timing.get(&stream) {
+                    if count > 1 && last > first {
+                        let span_s = (last - first) as f64 / 1000.0;
+                        v.frame_rate = Some((count - 1) as f64 / span_s);
+                        v.frame_rate_mode = Some(FrameRateMode::Constant);
+                    }
+                }
+                v.frame_count = timing.get(&stream).map(|&(_, _, c)| c);
+            }
+        }
+        for a in &mut report.audios {
+            let Ok(stream) = u8::try_from(a.stream_id) else {
+                continue;
+            };
+            if let Some(&bytes) = payload_bytes.get(&stream) {
+                a.stream_size = Some(bytes);
+            }
+        }
+    }
+
+    /// Reads one Data Object packet, which may carry a single payload or several.
+    fn parse_data_packet(
+        packet: &[u8],
+        payload_bytes: &mut HashMap<u8, u64>,
+        timing: &mut HashMap<u8, (u32, u32, u64)>,
+    ) {
+        // Field widths are selected by 2-bit type codes throughout the packet header.
+        fn read_var(data: &[u8], pos: &mut usize, kind: u8) -> Option<u32> {
+            let width = match kind {
+                0 => return Some(0),
+                1 => 1,
+                2 => 2,
+                _ => 4,
+            };
+            let bytes = data.get(*pos..*pos + width)?;
+            *pos += width;
+            Some(
+                bytes
+                    .iter()
+                    .rev()
+                    .fold(0u32, |acc, &b| (acc << 8) | b as u32),
+            )
+        }
+
+        let mut pos = 0usize;
+        let Some(&first) = packet.first() else { return };
+        if first & 0x80 != 0 {
+            // Error correction data present; its length is in the low nibble.
+            pos += 1 + (first & 0x0F) as usize;
+        }
+
+        let (Some(&length_flags), Some(&property_flags)) = (packet.get(pos), packet.get(pos + 1))
+        else {
+            return;
+        };
+        pos += 2;
+
+        let Some(packet_length) = read_var(packet, &mut pos, (length_flags >> 5) & 0x03) else {
+            return;
+        };
+        if read_var(packet, &mut pos, (length_flags >> 1) & 0x03).is_none() {
+            return;
+        }
+        let Some(padding) = read_var(packet, &mut pos, (length_flags >> 3) & 0x03) else {
+            return;
+        };
+        // Send time (4 bytes) and duration (2 bytes).
+        pos += 6;
+
+        let multiple = length_flags & 0x01 != 0;
+        let (count, payload_length_kind) = if multiple {
+            let Some(&flags) = packet.get(pos) else {
+                return;
+            };
+            pos += 1;
+            (flags & 0x3F, (flags >> 6) & 0x03)
+        } else {
+            (1, 0)
+        };
+
+        for _ in 0..count {
+            let Some(&stream_byte) = packet.get(pos) else {
+                return;
+            };
+            pos += 1;
+            let stream = stream_byte & 0x7F;
+
+            if read_var(packet, &mut pos, (property_flags >> 4) & 0x03).is_none() {
+                return;
+            }
+            let Some(offset_into_object) = read_var(packet, &mut pos, (property_flags >> 2) & 0x03)
+            else {
+                return;
+            };
+            let Some(replicated_len) = read_var(packet, &mut pos, property_flags & 0x03) else {
+                return;
+            };
+            let replicated_start = pos;
+            pos += replicated_len as usize;
+
+            let length = if multiple {
+                match read_var(packet, &mut pos, payload_length_kind) {
+                    Some(len) => len as usize,
+                    None => return,
+                }
+            } else {
+                let total = if packet_length > 0 {
+                    packet_length as usize
+                } else {
+                    packet.len()
+                };
+                total.saturating_sub(pos).saturating_sub(padding as usize)
+            };
+
+            *payload_bytes.entry(stream).or_insert(0) += length as u64;
+
+            // A zero offset starts a new media object; its presentation time sits in the
+            // replicated data right after the media object size.
+            if offset_into_object == 0 && replicated_len >= 8 {
+                if let Some(bytes) = packet.get(replicated_start + 4..replicated_start + 8) {
+                    let time = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+                    timing
+                        .entry(stream)
+                        .and_modify(|entry| {
+                            entry.0 = entry.0.min(time);
+                            entry.1 = entry.1.max(time);
+                            entry.2 += 1;
+                        })
+                        .or_insert((time, time, 1));
+                }
+            }
+
+            pos += length;
+        }
     }
 
     fn parse_file_properties(payload: &[u8], report: &mut MediaReport) {
@@ -134,6 +339,17 @@ impl AsfDemuxer {
             payload[63],
         ]);
 
+        if payload.len() >= 72 {
+            let min_packet_size =
+                u32::from_le_bytes([payload[68], payload[69], payload[70], payload[71]]);
+            if min_packet_size > 0 {
+                report
+                    .general
+                    .extra
+                    .insert("PacketSize".to_string(), min_packet_size.to_string());
+            }
+        }
+
         if play_duration_100ns > 0 {
             let dur_ms = (play_duration_100ns as f64 / 10_000.0) - (preroll_ms as f64);
             let final_dur = if dur_ms > 0.0 {
@@ -149,6 +365,101 @@ impl AsfDemuxer {
                 u32::from_le_bytes([payload[76], payload[77], payload[78], payload[79]]);
             if max_bitrate > 0 {
                 report.general.overall_bitrate = Some(max_bitrate as u64);
+            }
+        }
+    }
+
+    /// Walks the objects nested inside the Header Extension object.
+    fn parse_header_extension(data: &[u8], report: &mut MediaReport) {
+        let mut offset = 0;
+        while offset + 24 <= data.len() {
+            let guid = &data[offset..offset + 16];
+            let obj_size = u64::from_le_bytes([
+                data[offset + 16],
+                data[offset + 17],
+                data[offset + 18],
+                data[offset + 19],
+                data[offset + 20],
+                data[offset + 21],
+                data[offset + 22],
+                data[offset + 23],
+            ]) as usize;
+            if obj_size < 24 {
+                break;
+            }
+            let payload_end = (offset + obj_size).min(data.len());
+            let payload = &data[offset + 24..payload_end];
+
+            if guid == GUID_EXTENDED_STREAM_PROPERTIES && payload.len() >= 64 {
+                Self::parse_extended_stream_properties(payload, report);
+            }
+
+            offset += obj_size;
+        }
+    }
+
+    /// Extended Stream Properties: average frame time and the stream data bit rate.
+    fn parse_extended_stream_properties(payload: &[u8], report: &mut MediaReport) {
+        let stream_number = u16::from_le_bytes([payload[48], payload[49]]) as u32;
+        let data_bitrate = u32::from_le_bytes([payload[40], payload[41], payload[42], payload[43]]);
+        // Average time per frame, in 100-nanosecond units.
+        let avg_time_per_frame = u64::from_le_bytes([
+            payload[56],
+            payload[57],
+            payload[58],
+            payload[59],
+            payload[60],
+            payload[61],
+            payload[62],
+            payload[63],
+        ]);
+
+        for v in &mut report.videos {
+            if v.stream_id != stream_number {
+                continue;
+            }
+            if avg_time_per_frame > 0 {
+                v.frame_rate = Some(10_000_000.0 / avg_time_per_frame as f64);
+            }
+            if data_bitrate > 0 {
+                v.bit_rate = Some(data_bitrate as u64);
+            }
+        }
+        for a in &mut report.audios {
+            if a.stream_id == stream_number && data_bitrate > 0 && a.bit_rate.is_none() {
+                a.bit_rate = Some(data_bitrate as u64);
+            }
+        }
+    }
+
+    /// Stream Bitrate Properties: a per-stream average bit rate table.
+    fn parse_stream_bitrate(payload: &[u8], report: &mut MediaReport) {
+        let count = u16::from_le_bytes([payload[0], payload[1]]) as usize;
+        for i in 0..count {
+            let off = 2 + i * 6;
+            if off + 6 > payload.len() {
+                break;
+            }
+            let stream_number =
+                (u16::from_le_bytes([payload[off], payload[off + 1]]) & 0x7F) as u32;
+            let bitrate = u32::from_le_bytes([
+                payload[off + 2],
+                payload[off + 3],
+                payload[off + 4],
+                payload[off + 5],
+            ]) as u64;
+            if bitrate == 0 {
+                continue;
+            }
+            for v in &mut report.videos {
+                if v.stream_id == stream_number && v.bit_rate.is_none() {
+                    v.bit_rate = Some(bitrate);
+                }
+            }
+            for a in &mut report.audios {
+                if a.stream_id == stream_number && a.bit_rate.is_none() {
+                    a.bit_rate = Some(bitrate);
+                }
             }
         }
     }
@@ -196,6 +507,7 @@ impl AsfDemuxer {
             a.sampling_rate = sample_rate;
             a.bit_rate = Some(byte_rate as u64 * 8);
             a.bit_depth = Some(bit_depth);
+            a.codec_id = Some(format!("{format_tag:X}"));
             a.duration_ms = report.general.duration_ms;
 
             a.channel_layout = match channels {
@@ -250,7 +562,14 @@ impl AsfDemuxer {
             if bmp.len() >= 40 {
                 let width = i32::from_le_bytes([bmp[4], bmp[5], bmp[6], bmp[7]]).unsigned_abs();
                 let height = i32::from_le_bytes([bmp[8], bmp[9], bmp[10], bmp[11]]).unsigned_abs();
-                let bit_depth = u16::from_le_bytes([bmp[14], bmp[15]]) as u8;
+                // biBitCount is the total across components, not per component.
+                let bit_count = u16::from_le_bytes([bmp[14], bmp[15]]);
+                let bit_depth = match bit_count {
+                    24 | 32 => 8,
+                    36 | 48 => 12,
+                    n if n >= 8 => (n / 3).clamp(8, 16) as u8,
+                    _ => 8,
+                };
                 let fourcc = &bmp[16..20];
                 let fourcc_str = String::from_utf8_lossy(fourcc).to_string();
 
@@ -258,6 +577,10 @@ impl AsfDemuxer {
                 v.height = height;
                 v.bit_depth = bit_depth;
                 v.codec_id = Some(fourcc_str.clone());
+                v.color_space = Some("YUV".to_string());
+                if width > 0 && height > 0 {
+                    v.display_aspect_ratio = Some(width as f64 / height as f64);
+                }
                 v.duration_ms = report.general.duration_ms;
 
                 match fourcc {

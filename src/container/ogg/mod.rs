@@ -111,11 +111,78 @@ impl OggDemuxer {
                     report.general.recorded_date = tags.date;
                     report.general.genre = tags.genre;
                 }
+            } else if page_payload.starts_with(b"\x7fFLAC") {
+                // Ogg FLAC: a 9-byte mapping header, then the native STREAMINFO block.
+                audio_track.format = AudioCodec::FLAC;
+                audio_track.format_info = Some("Free Lossless Audio Codec".to_string());
+                audio_track.compression_mode = Some("Lossless".to_string());
+                if page_payload.len() > 13 {
+                    if let Ok(info) = crate::audio::FlacStreamInfo::parse(&page_payload[13..]) {
+                        audio_track.sampling_rate = info.sample_rate;
+                        audio_track.channels = info.channels;
+                        audio_track.channel_layout = Some(info.channel_layout);
+                        audio_track.bit_depth = Some(info.bit_depth);
+                    }
+                }
+            } else if page_payload.starts_with(b"Speex   ") {
+                audio_track.format = AudioCodec::Other("Speex".to_string());
+                audio_track.format_info = Some("Speex".to_string());
+                if page_payload.len() >= 44 {
+                    audio_track.sampling_rate = u32::from_le_bytes([
+                        page_payload[36],
+                        page_payload[37],
+                        page_payload[38],
+                        page_payload[39],
+                    ]);
+                }
+                if page_payload.len() >= 52 {
+                    audio_track.channels = u32::from_le_bytes([
+                        page_payload[48],
+                        page_payload[49],
+                        page_payload[50],
+                        page_payload[51],
+                    ]);
+                    audio_track.channel_layout =
+                        AudioChannelLayout::from_channel_count(audio_track.channels);
+                }
+            } else if page_payload.starts_with(b"\x80theora") {
+                let mut v = VideoTrack::default();
+                v.stream_id = 1;
+                v.format = VideoCodec::Theora;
+                v.format_info = Some("Theora".to_string());
+                v.codec_id = Some("theora".to_string());
+                if page_payload.len() >= 22 {
+                    // Frame size is stored in macroblocks; the picture size follows.
+                    v.width = u32::from_be_bytes([0, 0, page_payload[14], page_payload[15]]) << 4;
+                    v.height = u32::from_be_bytes([0, 0, page_payload[16], page_payload[17]]) << 4;
+                }
+                if page_payload.len() >= 30 {
+                    let fps_num = u32::from_be_bytes([
+                        page_payload[22],
+                        page_payload[23],
+                        page_payload[24],
+                        page_payload[25],
+                    ]);
+                    let fps_den = u32::from_be_bytes([
+                        page_payload[26],
+                        page_payload[27],
+                        page_payload[28],
+                        page_payload[29],
+                    ]);
+                    if fps_den > 0 {
+                        v.frame_rate = Some(fps_num as f64 / fps_den as f64);
+                    }
+                }
+                v.color_space = Some("YUV".to_string());
+                if v.width > 0 && v.height > 0 {
+                    v.display_aspect_ratio = Some(v.width as f64 / v.height as f64);
+                }
+                report.videos.push(v);
             }
 
             offset = payload_offset + page_payload_size;
             // Stop scanning after initial header pages
-            if offset > 65536 && audio_track.format != AudioCodec::Other("Unknown".to_string()) {
+            if offset > 65536 && !matches!(audio_track.format, AudioCodec::Other(_)) {
                 break;
             }
         }
@@ -161,7 +228,7 @@ impl OggDemuxer {
             }
         }
 
-        if audio_track.format != AudioCodec::Other("Unknown".to_string()) {
+        if !matches!(audio_track.format, AudioCodec::Other(ref n) if n == "Unknown") {
             report.audios.push(audio_track);
         }
 

@@ -36,8 +36,10 @@ impl Y4mDemuxer {
         let header_str = String::from_utf8_lossy(&data[0..header_end]);
 
         let mut video_track = VideoTrack::default();
-        video_track.format = VideoCodec::Raw;
+        video_track.format = VideoCodec::Other("YUV".to_string());
         video_track.format_info = Some("YUV4MPEG2 Raw Uncompressed Video".to_string());
+        video_track.color_space = Some("YUV".to_string());
+        video_track.compression_mode = Some("Lossless".to_string());
         video_track.bit_depth = 8;
         video_track.chroma_subsampling = Some(ChromaSubsampling::YUV420);
 
@@ -98,13 +100,48 @@ impl Y4mDemuxer {
                     } else if val.contains("mono") {
                         video_track.chroma_subsampling = Some(ChromaSubsampling::Monochrome);
                     }
-                    if val.contains("p10") || val.contains("10") {
-                        video_track.bit_depth = 10;
-                    } else if val.contains("p12") || val.contains("12") {
+                    // The depth suffix is written as p10 / p12 / p16.
+                    if val.contains("p16") {
+                        video_track.bit_depth = 16;
+                    } else if val.contains("p12") {
                         video_track.bit_depth = 12;
+                    } else if val.contains("p10") {
+                        video_track.bit_depth = 10;
                     }
                 }
                 _ => {}
+            }
+        }
+
+        // Frames are stored raw, so the frame size follows from the geometry and the
+        // sample format, and the bit rate is exact rather than an average.
+        let samples_per_pixel = match video_track.chroma_subsampling {
+            Some(ChromaSubsampling::YUV444) => 3.0,
+            Some(ChromaSubsampling::YUV422) => 2.0,
+            Some(ChromaSubsampling::Monochrome) => 1.0,
+            _ => 1.5,
+        };
+        let bytes_per_sample = video_track.bit_depth.div_ceil(8) as f64;
+        let frame_bytes = (video_track.width as f64
+            * video_track.height as f64
+            * samples_per_pixel
+            * bytes_per_sample) as u64;
+
+        if frame_bytes > 0 {
+            // Each frame is introduced by a "FRAME" magic line.
+            let payload = data.len().saturating_sub(header_end + 1) as u64;
+            let frame_count = payload / (frame_bytes + 6);
+            if frame_count > 0 {
+                video_track.frame_count = Some(frame_count);
+                video_track.stream_size = Some(frame_count * frame_bytes);
+                if let Some(fps) = video_track.frame_rate.filter(|f| *f > 0.0) {
+                    let duration_ms = frame_count as f64 / fps * 1000.0;
+                    video_track.duration_ms = Some(duration_ms);
+                    report.general.duration_ms = Some(duration_ms);
+                    video_track.bit_rate = Some((frame_bytes as f64 * 8.0 * fps) as u64);
+                    report.general.overall_bitrate =
+                        Some((data.len() as f64 * 8.0 / (duration_ms / 1000.0)) as u64);
+                }
             }
         }
 

@@ -16,6 +16,14 @@ const KEY_RGBA_DESCRIPTOR: [u8; 4] = [0x01, 0x01, 0x29, 0x00];
 const KEY_MPEG2_DESCRIPTOR: [u8; 4] = [0x01, 0x01, 0x51, 0x00];
 const KEY_WAVE_AUDIO_DESCRIPTOR: [u8; 4] = [0x01, 0x01, 0x48, 0x00];
 const KEY_GENERIC_SOUND_DESCRIPTOR: [u8; 4] = [0x01, 0x01, 0x42, 0x00];
+const KEY_AES3_DESCRIPTOR: [u8; 4] = [0x01, 0x01, 0x47, 0x00];
+
+/// Renders the second half of a 16-byte UL, the part MediaInfo shows as a codec ID.
+fn hex_ul_tail(ul: &[u8]) -> String {
+    ul.get(8..16)
+        .map(|b| b.iter().map(|x| format!("{x:02X}")).collect())
+        .unwrap_or_default()
+}
 const KEY_IDENTIFICATION_SET: [u8; 4] = [0x01, 0x01, 0x30, 0x00];
 const KEY_TIMELINE_TRACK: [u8; 4] = [0x01, 0x01, 0x3B, 0x00];
 const KEY_SOURCE_CLIP: [u8; 4] = [0x01, 0x01, 0x11, 0x00];
@@ -46,10 +54,14 @@ impl MxfDemuxer {
         let mut has_audio = false;
         let mut track_duration_edit_units: u64 = 0;
         let mut track_edit_rate: f64 = 0.0;
+        let mut picture_essence_bytes = 0u64;
+        let mut sound_essence_bytes = 0u64;
+        let mut first_picture_essence: Vec<u8> = Vec::new();
 
-        let max_scan = data.len().min(4 * 1024 * 1024); // Scan up to 4MB of header metadata
-
-        while offset + 16 < max_scan {
+        // The walk covers the whole file: essence element values are skipped by length
+        // rather than read, so this stays a hop between KLV headers, and stopping early
+        // would under-count the essence the bit rate is derived from.
+        while offset + 16 < data.len() {
             if &data[offset..offset + 4] != &MXF_SMPTE_PREFIX {
                 offset += 1;
                 continue;
@@ -70,14 +82,35 @@ impl MxfDemuxer {
 
             // Check Header Partition Pack: 06 0E 2B 34 02 05 01 01 0D 01 02 01 01
             if key[4..13] == [0x02, 0x05, 0x01, 0x01, 0x0D, 0x01, 0x02, 0x01, 0x01] {
+                // The OperationalPattern UL sits after the fixed partition pack fields.
+                if let Some(op) = value.get(64..80).and_then(Self::operational_pattern) {
+                    report.general.format_profile = Some(op);
+                }
                 let status_byte = key[13];
-                let op_status = match status_byte {
-                    0x02 => "Closed/Complete",
-                    0x03 => "Closed/Header",
-                    0x04 => "Open/Complete",
-                    _ => "Open/Header",
-                };
-                report.general.format_profile = Some(format!("MXF ({})", op_status));
+                report.general.extra.insert(
+                    "PartitionStatus".to_string(),
+                    match status_byte {
+                        0x02 => "Closed/Complete",
+                        0x03 => "Closed/Header",
+                        0x04 => "Open/Complete",
+                        _ => "Open/Header",
+                    }
+                    .to_string(),
+                );
+            }
+
+            // Essence elements: 06.0E.2B.34.01.02.01.01.0D.01.03.01 then the item type.
+            if key[4..12] == [0x01, 0x02, 0x01, 0x01, 0x0D, 0x01, 0x03, 0x01] {
+                match key[12] {
+                    0x05 | 0x15 => {
+                        picture_essence_bytes += val_len as u64;
+                        if first_picture_essence.is_empty() {
+                            first_picture_essence = value[..value.len().min(64)].to_vec();
+                        }
+                    }
+                    0x06 | 0x16 => sound_essence_bytes += val_len as u64,
+                    _ => {}
+                }
             }
 
             // Check sets by last 4 bytes of 16-byte key
@@ -91,6 +124,7 @@ impl MxfDemuxer {
                 has_video = true;
             } else if key_tail == KEY_WAVE_AUDIO_DESCRIPTOR
                 || key_tail == KEY_GENERIC_SOUND_DESCRIPTOR
+                || key_tail == KEY_AES3_DESCRIPTOR
             {
                 Self::parse_sound_essence_descriptor(value, &mut audio_track);
                 has_audio = true;
@@ -124,6 +158,30 @@ impl MxfDemuxer {
                 }
                 let br = ((data.len() as u64 * 8) as f64 / (dur_ms / 1000.0)) as u64;
                 report.general.overall_bitrate = Some(br);
+            }
+        }
+
+        if video_track.format == VideoCodec::DNxHD && video_track.format_version.is_none() {
+            video_track.format_version =
+                crate::video::vc3_header_version(&first_picture_essence).map(|v| v.to_string());
+        }
+
+        // Codecs whose descriptor carries no bit rate get one measured from the essence.
+        if let Some(dur_ms) = report.general.duration_ms.filter(|d| *d > 0.0) {
+            let seconds = dur_ms / 1000.0;
+            if has_video && picture_essence_bytes > 0 {
+                video_track.stream_size = Some(picture_essence_bytes);
+                if video_track.bit_rate.is_none() {
+                    video_track.bit_rate =
+                        Some((picture_essence_bytes as f64 * 8.0 / seconds) as u64);
+                }
+            }
+            if has_audio && sound_essence_bytes > 0 {
+                audio_track.stream_size = Some(sound_essence_bytes);
+                if audio_track.bit_rate.is_none() {
+                    audio_track.bit_rate =
+                        Some((sound_essence_bytes as f64 * 8.0 / seconds) as u64);
+                }
             }
         }
 
@@ -162,8 +220,30 @@ impl MxfDemuxer {
         }
     }
 
+    /// Decodes an OperationalPattern UL into its `OP-1a` style name.
+    fn operational_pattern(ul: &[u8]) -> Option<String> {
+        if ul.len() < 16 || ul[8] != 0x0D || ul[10] != 0x02 {
+            return None;
+        }
+        let item_complexity = ul[12];
+        let package_complexity = ul[13];
+        // 0x10 marks the specialised OP-Atom pattern rather than a generalised OP.
+        if item_complexity == 0x10 {
+            return Some("OP-Atom".to_string());
+        }
+        if (1..=3).contains(&item_complexity) && (1..=3).contains(&package_complexity) {
+            let letter = (b'a' + package_complexity - 1) as char;
+            return Some(format!("OP-{item_complexity}{letter}"));
+        }
+        None
+    }
+
     fn parse_picture_essence_descriptor(data: &[u8], track: &mut VideoTrack) {
         let mut offset = 0;
+        let mut horizontal_subsampling = None;
+        let mut vertical_subsampling = None;
+        let mut essence_container: Option<String> = None;
+        let mut picture_coding: Option<String> = None;
         while offset + 4 <= data.len() {
             let tag = u16::from_be_bytes([data[offset], data[offset + 1]]);
             let len = u16::from_be_bytes([data[offset + 2], data[offset + 3]]) as usize;
@@ -203,14 +283,93 @@ impl MxfDemuxer {
                 }
                 0x3201 if val.len() >= 16 => {
                     // PictureEssenceCoding (16-byte UL)
-                    track.format = Self::ul_to_video_codec(val);
+                    let (codec, info, profile) = Self::ul_to_video_codec(val);
+                    track.format = codec;
+                    track.format_info = info.map(str::to_string);
+                    if track.format_profile.is_none() {
+                        track.format_profile = profile.map(str::to_string);
+                    }
+                    picture_coding = Some(hex_ul_tail(val));
+                }
+                0x3301 if val.len() >= 4 => {
+                    // ComponentDepth
+                    let depth = u32::from_be_bytes([val[0], val[1], val[2], val[3]]);
+                    if (8..=16).contains(&depth) {
+                        track.bit_depth = depth as u8;
+                    }
+                }
+                0x3302 if val.len() >= 4 => {
+                    horizontal_subsampling =
+                        Some(u32::from_be_bytes([val[0], val[1], val[2], val[3]]));
+                }
+                0x3308 if val.len() >= 4 => {
+                    vertical_subsampling =
+                        Some(u32::from_be_bytes([val[0], val[1], val[2], val[3]]));
+                }
+                0x320E if val.len() >= 8 => {
+                    // AspectRatio (Rational)
+                    let num = u32::from_be_bytes([val[0], val[1], val[2], val[3]]) as f64;
+                    let den = u32::from_be_bytes([val[4], val[5], val[6], val[7]]) as f64;
+                    if den > 0.0 {
+                        track.display_aspect_ratio = Some(num / den);
+                    }
+                }
+                0x3004 if val.len() >= 16 => {
+                    // EssenceContainer UL: the first half of MediaInfo's codec ID.
+                    essence_container = Some(hex_ul_tail(val));
+                }
+                0x3212 if !val.is_empty() => {
+                    // FieldDominance: 1 means the first field is field 1 (top).
+                    track.scan_order = Some(if val[0] == 2 { "BFF" } else { "TFF" }.to_string());
+                }
+                0x320D if val.len() >= 16 => {
+                    // VideoLineMap: the lower first line marks the dominant field.
+                    let f1 = u32::from_be_bytes([val[8], val[9], val[10], val[11]]);
+                    let f2 = u32::from_be_bytes([val[12], val[13], val[14], val[15]]);
+                    if f1 > 0 && f2 > 0 && track.scan_order.is_none() {
+                        track.scan_order = Some(if f1 < f2 { "TFF" } else { "BFF" }.to_string());
+                    }
+                }
+                // MPEGVideoDescriptor BitRate.
+                0x8000 if val.len() >= 4 => {
+                    let rate = u32::from_be_bytes([val[0], val[1], val[2], val[3]]) as u64;
+                    if rate > 0 {
+                        track.bit_rate = Some(rate);
+                    }
                 }
                 _ => {}
             }
         }
+
+        // MediaInfo renders the codec ID as the essence container UL joined to the
+        // picture essence coding UL.
+        track.codec_id = match (&essence_container, &picture_coding) {
+            (Some(container), Some(coding)) => Some(format!("{container}-{coding}")),
+            (Some(container), None) => Some(container.clone()),
+            (None, Some(coding)) => Some(coding.clone()),
+            (None, None) => None,
+        };
+
+        // SeparateFields stores one field, so the frame height is twice the stored height.
+        if track.scan_type.as_deref() == Some("Interlaced") {
+            track.stored_height = Some(track.height);
+            track.height *= 2;
+        }
+
+        track.chroma_subsampling = match (horizontal_subsampling, vertical_subsampling) {
+            (Some(1), Some(1)) => Some(ChromaSubsampling::YUV444),
+            (Some(2), Some(1)) => Some(ChromaSubsampling::YUV422),
+            (Some(2), Some(2)) => Some(ChromaSubsampling::YUV420),
+            (Some(4), _) => Some(ChromaSubsampling::YUV411),
+            _ => track.chroma_subsampling,
+        };
+        if track.color_space.is_none() {
+            track.color_space = Some("YUV".to_string());
+        }
     }
 
     fn parse_sound_essence_descriptor(data: &[u8], track: &mut AudioTrack) {
+        let mut quantization_bits: Option<u8> = None;
         track.format = AudioCodec::PCM;
         track.format_info = Some("Pulse Code Modulation".to_string());
         track.compression_mode = Some("Lossless".to_string());
@@ -229,6 +388,24 @@ impl MxfDemuxer {
             offset += len;
 
             match tag {
+                0x3004 if val.len() >= 16 => {
+                    track.codec_id = Some(hex_ul_tail(val));
+                }
+                0x3D01 if val.len() >= 4 => {
+                    // QuantizationBits
+                    let bits = u32::from_be_bytes([val[0], val[1], val[2], val[3]]);
+                    if (1..=64).contains(&bits) {
+                        quantization_bits = Some(bits as u8);
+                    }
+                }
+                0x3D09 if val.len() >= 4 => {
+                    // AvgBps, in bytes per second.
+                    let bps = u32::from_be_bytes([val[0], val[1], val[2], val[3]]) as u64;
+                    if bps > 0 {
+                        track.bit_rate = Some(bps * 8);
+                        track.bit_rate_mode = Some(BitrateMode::Constant);
+                    }
+                }
                 0x3D03 if val.len() >= 8 => {
                     // AudioSamplingRate (Rational)
                     let num = u32::from_be_bytes([val[0], val[1], val[2], val[3]]);
@@ -256,6 +433,10 @@ impl MxfDemuxer {
                 }
                 _ => {}
             }
+        }
+
+        if let Some(bits) = quantization_bits {
+            track.bit_depth = Some(bits);
         }
     }
 
@@ -339,38 +520,49 @@ impl MxfDemuxer {
         None
     }
 
-    fn ul_to_video_codec(ul: &[u8]) -> VideoCodec {
-        // Match known SMPTE Picture Essence Coding Universal Labels
+    /// Maps a SMPTE PictureEssenceCoding UL to a codec.
+    ///
+    /// Byte 12 of the UL selects the compression family and byte 13 the specific scheme,
+    /// which is what distinguishes MPEG-2 from AVC, DV from VC-3, and so on.
+    fn ul_to_video_codec(ul: &[u8]) -> (VideoCodec, Option<&'static str>, Option<&'static str>) {
         if ul.len() < 16 {
-            return VideoCodec::Other("MXF Video".to_string());
-        }
-        // AVC-Intra / H.264
-        if ul[0..8] == [0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x0D]
-            || ul.windows(4).any(|w| w == b"avc1" || w == b"h264")
-        {
-            return VideoCodec::AVC;
-        }
-        // ProRes
-        if ul
-            .windows(4)
-            .any(|w| w == b"apch" || w == b"apcn" || w == b"apcs" || w == b"apco" || w == b"ap4h")
-        {
-            return VideoCodec::ProRes;
-        }
-        // DNxHD
-        if ul.windows(4).any(|w| w == b"AVdn") {
-            return VideoCodec::DNxHD;
-        }
-        // MPEG-2 Video
-        if ul[0..8] == [0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x02] {
-            return VideoCodec::MPEG2Video;
-        }
-        // HEVC
-        if ul.windows(4).any(|w| w == b"hvc1" || w == b"hev1") {
-            return VideoCodec::HEVC;
+            return (VideoCodec::Other("MXF Video".to_string()), None, None);
         }
 
-        VideoCodec::Other("MXF Video".to_string())
+        // Uncompressed picture coding lives under a different sub-branch.
+        if ul[11] == 0x01 {
+            return (VideoCodec::Raw, Some("Uncompressed"), None);
+        }
+
+        match (ul[12], ul[13]) {
+            (0x01, 0x32) => (VideoCodec::AVC, Some("Advanced Video Coding"), None),
+            (0x01, 0x33) => (VideoCodec::HEVC, Some("High Efficiency Video Coding"), None),
+            (0x01, 0x20) => (VideoCodec::MPEG4Visual, Some("MPEG-4 Visual"), None),
+            (0x01, 0x10) => (VideoCodec::MPEG1Video, Some("MPEG-1 Video"), None),
+            (0x01, _) => (
+                VideoCodec::MPEG2Video,
+                Some("MPEG-2 Video"),
+                Some(match ul[14] {
+                    0x11 | 0x01 => "Main",
+                    0x02 | 0x03 => "High",
+                    _ => "Main",
+                }),
+            ),
+            (0x02, _) => (VideoCodec::DV, Some("Digital Video"), None),
+            (0x03, 0x06) => (VideoCodec::ProRes, Some("Apple ProRes"), None),
+            (0x03, _) => (
+                VideoCodec::Other("JPEG".to_string()),
+                Some("Motion JPEG"),
+                None,
+            ),
+            (0x0C, _) => (
+                VideoCodec::Other("JPEG 2000".to_string()),
+                Some("JPEG 2000"),
+                None,
+            ),
+            (0x71, _) => (VideoCodec::DNxHD, Some("Avid DNxHD / VC-3"), Some("HD")),
+            _ => (VideoCodec::Other("MXF Video".to_string()), None, None),
+        }
     }
 }
 

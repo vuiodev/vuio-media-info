@@ -136,12 +136,28 @@ impl MediaInfo {
             return Ok(empty);
         }
 
-        // Fast Header Probe: Read initial chunk (up to 4MB) to parse in-memory in microseconds
-        let initial_chunk_size = (file_len as usize).min(4 * 1024 * 1024);
+        // Fast Header Probe: read the file in one go when it is small enough to parse
+        // in-memory in microseconds.
+        //
+        // The probe result is only usable when the whole file was read. Demuxers that
+        // derive stream sizes and bit rates by walking every cluster, packet or chunk
+        // (Matroska, MPEG-TS, MPEG-PS, AVI) would otherwise report totals for the first
+        // 4 MB and silently under-report every larger file.
+        const PROBE_LIMIT: usize = 4 * 1024 * 1024;
+        let initial_chunk_size = (file_len as usize).min(PROBE_LIMIT);
+        let complete_read = file_len as usize <= PROBE_LIMIT;
         let mut buffer = vec![0u8; initial_chunk_size];
         file.read_exact(&mut buffer)?;
 
-        let mut report = match ContainerParser::parse(&buffer) {
+        let probe = if complete_read {
+            ContainerParser::parse(&buffer)
+        } else {
+            Err(MediaInfoError::UnsupportedFormat(
+                "file exceeds the in-memory probe limit".to_string(),
+            ))
+        };
+
+        let mut report = match probe {
             Ok(mut rep)
                 if !rep.videos.is_empty()
                     || !rep.audios.is_empty()
@@ -158,7 +174,9 @@ impl MediaInfo {
                 rep
             }
             _ => {
-                // If initial probe was incomplete (e.g. MP4 with moov at end of file), fall back to memory-mapped parsing
+                // Larger files, and files whose headers sit past the probe (an MP4 with a
+                // trailing moov), are parsed through a memory map so demuxers still only
+                // fault in the pages they actually walk.
                 let mmap = unsafe { memmap2::Mmap::map(&file)? };
                 let mut rep = ContainerParser::parse(&mmap)?;
                 rep.general.file_size = file_len;

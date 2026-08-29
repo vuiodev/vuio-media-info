@@ -68,6 +68,16 @@ impl FormatDetector {
             }
         }
 
+        // M2TS / Blu-ray: each 188-byte packet is prefixed with a 4-byte arrival timestamp,
+        // so the sync byte is at offset 4 rather than 0.
+        if prefix.len() >= 192 * 3
+            && prefix[4] == 0x47
+            && prefix[196] == 0x47
+            && prefix[388] == 0x47
+        {
+            return ContainerFormat::MPEGTS;
+        }
+
         // MPEG-PS: 0x00 0x00 0x01 0xBA (Pack Header)
         if prefix.starts_with(&[0x00, 0x00, 0x01, 0xBA]) {
             return ContainerFormat::MPEGPS;

@@ -82,6 +82,9 @@ impl TextFormatter {
                 };
                 Self::write_line(&mut out, "Format profile", &profile_str);
             }
+            if let Some(ref ver) = v.format_version {
+                Self::write_line(&mut out, "Format version", ver);
+            }
             if let Some(ref hdr) = v.hdr_format {
                 Self::write_line(&mut out, "HDR format", hdr);
             }
@@ -120,6 +123,15 @@ impl TextFormatter {
             if let Some(fps) = v.frame_rate {
                 Self::write_line(&mut out, "Frame rate", &format!("{:.3} FPS", fps));
             }
+            if let Some(ref st) = v.scan_type {
+                Self::write_line(&mut out, "Scan type", st);
+            }
+            if let Some(ref so) = v.scan_order {
+                Self::write_line(&mut out, "Scan order", so);
+            }
+            if let Some(ref std) = v.standard {
+                Self::write_line(&mut out, "Standard", std);
+            }
             if let Some(ref cs) = v.color_space {
                 Self::write_line(&mut out, "Color space", cs);
             }
@@ -130,13 +142,22 @@ impl TextFormatter {
             if let Some(range) = v.color_range {
                 Self::write_line(&mut out, "Color range", range.display_name());
             }
-            if let Some(prim) = v.color_primaries {
+            if let Some(prim) = v
+                .color_primaries
+                .filter(|p| p.display_name() != "Unspecified")
+            {
                 Self::write_line(&mut out, "Color primaries", prim.display_name());
             }
-            if let Some(tc) = v.transfer_characteristics {
+            if let Some(tc) = v
+                .transfer_characteristics
+                .filter(|t| t.display_name() != "Unspecified")
+            {
                 Self::write_line(&mut out, "Transfer characteristics", tc.display_name());
             }
-            if let Some(mc) = v.matrix_coefficients {
+            if let Some(mc) = v
+                .matrix_coefficients
+                .filter(|m| m.display_name() != "Unspecified")
+            {
                 Self::write_line(&mut out, "Matrix coefficients", mc.display_name());
             }
             if let Some(ref title) = v.title {
@@ -290,18 +311,21 @@ impl TextFormatter {
         }
     }
 
+    /// Formats a duration the way MediaInfo does, keeping the sub-second remainder so
+    /// short clips do not collapse to a bare second count.
     fn format_duration(ms: f64) -> String {
-        let total_secs = (ms / 1000.0) as u64;
-        let hours = total_secs / 3600;
-        let mins = (total_secs % 3600) / 60;
-        let secs = total_secs % 60;
+        let total_ms = ms.max(0.0).round() as u64;
+        let hours = total_ms / 3_600_000;
+        let mins = (total_ms % 3_600_000) / 60_000;
+        let secs = (total_ms % 60_000) / 1000;
+        let millis = total_ms % 1000;
 
         if hours > 0 {
-            format!("{} h {} min", hours, mins)
+            format!("{hours} h {mins} min")
         } else if mins > 0 {
-            format!("{} min {} s", mins, secs)
+            format!("{mins} min {secs} s")
         } else {
-            format!("{} s", secs)
+            format!("{secs} s {millis} ms")
         }
     }
 

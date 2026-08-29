@@ -19,6 +19,8 @@ pub struct AacInfo {
     pub channel_layout: AudioChannelLayout,
     pub is_he_aac: bool,
     pub is_he_aac_v2: bool,
+    /// MPEG-4 audio object type, used to build container codec IDs.
+    pub audio_object_type: u8,
 }
 
 impl AacInfo {
@@ -71,6 +73,7 @@ impl AacInfo {
             channel_layout,
             is_he_aac: false,
             is_he_aac_v2: false,
+            audio_object_type: profile_idx as u8 + 1,
         })
     }
 
@@ -152,6 +155,7 @@ impl AacInfo {
             channel_layout,
             is_he_aac,
             is_he_aac_v2,
+            audio_object_type: audio_object_type as u8,
         })
     }
 

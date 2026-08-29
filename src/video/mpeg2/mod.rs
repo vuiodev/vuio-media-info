@@ -15,6 +15,9 @@ pub struct Mpeg2SequenceHeader {
     pub chroma_subsampling: ChromaSubsampling,
     pub is_mpeg2: bool,
     pub profile_and_level: Option<String>,
+    /// Profile alone, without the level suffix.
+    pub profile: Option<String>,
+    pub level: Option<String>,
 }
 
 impl Mpeg2SequenceHeader {
@@ -79,6 +82,8 @@ impl Mpeg2SequenceHeader {
         let mut is_mpeg2 = false;
         let mut _is_progressive = false;
         let mut profile_and_level = None;
+        let mut profile_only: Option<String> = None;
+        let mut level_only: Option<String> = None;
 
         // Search for Sequence Extension (0x000001B5)
         if let Some(ext_idx) = data.windows(4).position(|w| w == [0x00, 0x00, 0x01, 0xB5]) {
@@ -107,6 +112,8 @@ impl Mpeg2SequenceHeader {
                                 10 => "Low",
                                 _ => "Main",
                             };
+                            profile_only = Some(profile.to_string());
+                            level_only = Some(level.to_string());
                             profile_and_level = Some(format!("{}@{}", profile, level));
                         }
                         if let Ok(prog) = er.1.read_bit() {
@@ -137,6 +144,12 @@ impl Mpeg2SequenceHeader {
             bit_rate,
             chroma_subsampling,
             is_mpeg2,
+            profile: if is_mpeg2 {
+                profile_only.clone().or(Some("Main".to_string()))
+            } else {
+                None
+            },
+            level: level_only.clone(),
             profile_and_level: if is_mpeg2 {
                 profile_and_level.or(Some("Main@Main".to_string()))
             } else {

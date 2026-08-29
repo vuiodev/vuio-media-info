@@ -3,6 +3,7 @@ use crate::core::{
     models::*,
     types::*,
 };
+use crate::video::{Av1SequenceHeader, Vp9Header};
 
 /// IVF (VP8 / VP9 / AV1 Elementary Stream Container) Demuxer.
 pub struct IvfDemuxer;
@@ -49,6 +50,49 @@ impl IvfDemuxer {
             b"AV01" => VideoCodec::AV1,
             _ => VideoCodec::Other(fourcc_str),
         };
+
+        // The first frame follows the 32-byte file header and a 12-byte frame header;
+        // its bitstream header carries the profile, bit depth and chroma format.
+        if data.len() > 44 {
+            let frame_len = u32::from_le_bytes([data[32], data[33], data[34], data[35]]) as usize;
+            let end = (44 + frame_len).min(data.len());
+            let frame = &data[44..end];
+            match fourcc {
+                b"AV01" => {
+                    if let Ok(seq) = Av1SequenceHeader::parse_stream(frame) {
+                        video_track.format_profile = Some(seq.profile_name.to_string());
+                        video_track.bit_depth = seq.bit_depth;
+                        video_track.chroma_subsampling = Some(seq.chroma_subsampling);
+                        video_track.color_range = Some(seq.color_range);
+                        video_track.color_primaries = Some(seq.color_primaries);
+                        video_track.transfer_characteristics = Some(seq.transfer_characteristics);
+                        video_track.matrix_coefficients = Some(seq.matrix_coefficients);
+                    }
+                }
+                b"VP90" | b"VP80" => {
+                    if let Ok(vp9) = Vp9Header::parse(frame) {
+                        video_track.format_profile = Some(vp9.profile.to_string());
+                        video_track.bit_depth = vp9.bit_depth;
+                        video_track.chroma_subsampling = Some(vp9.chroma_subsampling);
+                        video_track.color_range = Some(vp9.color_range);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if video_track.color_space.is_none() {
+            video_track.color_space = Some(
+                match video_track.chroma_subsampling {
+                    Some(ChromaSubsampling::RGB) => "RGB",
+                    _ => "YUV",
+                }
+                .to_string(),
+            );
+        }
+        if width > 0 && height > 0 {
+            video_track.display_aspect_ratio = Some(width as f64 / height as f64);
+        }
 
         if timebase_scale > 0 && timebase_rate > 0 {
             let fps = timebase_rate as f64 / timebase_scale as f64;
