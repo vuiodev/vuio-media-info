@@ -151,10 +151,23 @@ impl OggDemuxer {
                 v.format = VideoCodec::Theora;
                 v.format_info = Some("Theora".to_string());
                 v.codec_id = Some("theora".to_string());
-                if page_payload.len() >= 22 {
-                    // Frame size is stored in macroblocks; the picture size follows.
-                    v.width = u32::from_be_bytes([0, 0, page_payload[14], page_payload[15]]) << 4;
-                    v.height = u32::from_be_bytes([0, 0, page_payload[16], page_payload[17]]) << 4;
+                v.bit_depth = 8;
+                v.color_space = Some("YUV".to_string());
+
+                if page_payload.len() >= 20 {
+                    // PICW and PICH are 24-bit big-endian unsigned integers at offsets 14 and 17
+                    v.width = u32::from_be_bytes([
+                        0,
+                        page_payload[14],
+                        page_payload[15],
+                        page_payload[16],
+                    ]);
+                    v.height = u32::from_be_bytes([
+                        0,
+                        page_payload[17],
+                        page_payload[18],
+                        page_payload[19],
+                    ]);
                 }
                 if page_payload.len() >= 30 {
                     let fps_num = u32::from_be_bytes([
@@ -173,9 +186,48 @@ impl OggDemuxer {
                         v.frame_rate = Some(fps_num as f64 / fps_den as f64);
                     }
                 }
-                v.color_space = Some("YUV".to_string());
-                if v.width > 0 && v.height > 0 {
-                    v.display_aspect_ratio = Some(v.width as f64 / v.height as f64);
+                if page_payload.len() >= 36 {
+                    let par_num = u32::from_be_bytes([
+                        0,
+                        page_payload[30],
+                        page_payload[31],
+                        page_payload[32],
+                    ]);
+                    let par_den = u32::from_be_bytes([
+                        0,
+                        page_payload[33],
+                        page_payload[34],
+                        page_payload[35],
+                    ]);
+                    if par_num > 0 && par_den > 0 && v.width > 0 && v.height > 0 {
+                        v.display_aspect_ratio = Some(
+                            (v.width as f64 * par_num as f64) / (v.height as f64 * par_den as f64),
+                        );
+                    } else if v.width > 0 && v.height > 0 {
+                        v.display_aspect_ratio = Some(v.width as f64 / v.height as f64);
+                    }
+                }
+                if page_payload.len() >= 40 {
+                    let nombr = u32::from_be_bytes([
+                        0,
+                        page_payload[37],
+                        page_payload[38],
+                        page_payload[39],
+                    ]);
+                    if nombr > 0 {
+                        v.bit_rate = Some(nombr as u64);
+                    }
+                }
+                if page_payload.len() >= 42 {
+                    let pf = (page_payload[41] >> 3) & 0x03;
+                    v.chroma_subsampling = match pf {
+                        0 => Some(ChromaSubsampling::YUV420),
+                        2 => Some(ChromaSubsampling::YUV422),
+                        3 => Some(ChromaSubsampling::YUV444),
+                        _ => None,
+                    };
+                } else {
+                    v.chroma_subsampling = Some(ChromaSubsampling::YUV420);
                 }
                 report.videos.push(v);
             }

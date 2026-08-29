@@ -33,3 +33,5 @@ plan*.*
 *.log
 scratch/
 tmp/
+
+corpus/

@@ -404,3 +404,142 @@ fn test_matroska_colour_range_mapping() {
         let _ = std::fs::remove_file(path);
     }
 }
+
+#[test]
+fn test_ogg_theora_dimensions() {
+    use vuio_media_info::ChromaSubsampling;
+
+    // Construct a minimal Ogg header packet with a Theora identification header
+    // Total Theora ident header length = 42 bytes
+    let mut theora_header = vec![
+        0x80, b't', b'h', b'e', b'o', b'r', b'a', // 0..7: Magic
+        0x03, 0x02, 0x01, // 7..10: VMAJ=3, VMIN=2, VREV=1
+        0x00, 0x14, // 10..12: FMBW = 20 (20 * 16 = 320)
+        0x00, 0x0F, // 12..14: FMBH = 15 (15 * 16 = 240)
+        0x00, 0x01, 0x40, // 14..17: PICW = 320 (24-bit)
+        0x00, 0x00, 0xF0, // 17..20: PICH = 240 (24-bit)
+        0x00, 0x00, // 20..22: XOFFSET=0, YOFFSET=0
+        0x00, 0x00, 0x00, 0x19, // 22..26: FRN = 25
+        0x00, 0x00, 0x00, 0x01, // 26..30: FRD = 1
+        0x00, 0x00, 0x01, // 30..33: PARN = 1
+        0x00, 0x00, 0x01, // 33..36: PARD = 1
+        0x00, // 36: CS = 0 (undefined)
+        0x00, 0x00, 0x00, // 37..40: NOMBR = 0
+        0x00, // 40: QUAL=0, KFGSHIFT=0
+        0x00, // 41: PF=0 (4:2:0)
+    ];
+
+    // Wrap in an Ogg page
+    let mut ogg_page = vec![
+        b'O',
+        b'g',
+        b'g',
+        b'S', // capture pattern
+        0,    // structure version
+        0x02, // header_type: BOS (beginning of stream)
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0, // granule position
+        1,
+        0,
+        0,
+        0, // stream serial number
+        0,
+        0,
+        0,
+        0, // page sequence number
+        0,
+        0,
+        0,
+        0,                         // checksum
+        1,                         // number of page segments
+        theora_header.len() as u8, // segment table
+    ];
+    ogg_page.append(&mut theora_header);
+
+    let report = MediaInfo::open_buffer(&ogg_page).unwrap();
+    assert_eq!(report.general.format, vuio_media_info::ContainerFormat::Ogg);
+    assert_eq!(report.videos.len(), 1);
+    let v = &report.videos[0];
+    assert_eq!(v.format, vuio_media_info::VideoCodec::Theora);
+    assert_eq!(v.width, 320);
+    assert_eq!(v.height, 240);
+    assert_eq!(v.frame_rate, Some(25.0));
+    assert_eq!(v.bit_depth, 8);
+    assert_eq!(v.chroma_subsampling, Some(ChromaSubsampling::YUV420));
+}
+
+#[test]
+fn test_matroska_aac_probe_safety() {
+    // Construct a Matroska file with an AAC audio track whose cluster block
+    // contains the byte sequence [0x0B, 0x77] (which looks like AC-3/E-AC-3 syncword).
+    // The parser must NOT re-classify the track as E-AC-3.
+
+    // AudioSpecificConfig for AAC-LC, 48000 Hz, mono (0x11, 0x88)
+    let aac_config = vec![0x11, 0x88];
+
+    let audio_settings = vec![
+        0xB5, 0x84, 0x47, 0x3B, 0x80, 0x00, // SamplingFrequency = 48000.0 (f32)
+        0x9F, 0x81, 0x01, // Channels = 1
+    ];
+
+    let mut track = vec![
+        0xD7, 0x81, 0x01, // TrackNumber = 1
+        0x83, 0x81, 0x02, // TrackType = 2 (Audio)
+        0x86, 0x85, b'A', b'_', b'A', b'A', b'C', // CodecID = A_AAC
+    ];
+    track.push(0x63);
+    track.push(0xA2);
+    track.push(0x80 | aac_config.len() as u8);
+    track.extend_from_slice(&aac_config);
+
+    track.push(0xE1);
+    track.push(0x80 | audio_settings.len() as u8);
+    track.extend_from_slice(&audio_settings);
+
+    let mut tracks = vec![0xAE, 0x80 | track.len() as u8];
+    tracks.extend_from_slice(&track);
+
+    let mut tracks_elem = vec![0x16, 0x54, 0xAE, 0x6B, 0x80 | tracks.len() as u8];
+    tracks_elem.extend_from_slice(&tracks);
+
+    // SimpleBlock with TrackNumber=1, Timecode=0, Flags=0, and payload containing 0x0B 0x77
+    let block_payload = vec![
+        0x81, // TrackNumber 1 (EBML vint)
+        0x00, 0x00, // Timecode 0
+        0x00, // Flags (no lacing)
+        0x0B, 0x77, 0x00, 0x00, // Payload containing AC-3 syncword
+        0x00, 0x00, 0x00, 0x00,
+    ];
+    let mut simple_block = vec![0xA3, 0x80 | block_payload.len() as u8];
+    simple_block.extend_from_slice(&block_payload);
+
+    let mut cluster = vec![
+        0xE7, 0x81, 0x00, // Timecode 0
+    ];
+    cluster.extend_from_slice(&simple_block);
+
+    let mut cluster_elem = vec![0x1F, 0x43, 0xB6, 0x75, 0x80 | cluster.len() as u8];
+    cluster_elem.extend_from_slice(&cluster);
+
+    let mut segment = tracks_elem;
+    segment.extend_from_slice(&cluster_elem);
+
+    let mut file = vec![0x1A, 0x45, 0xDF, 0xA3, 0x84, 0x42, 0x86, 0x81, 0x01]; // EBML header
+    file.push(0x18);
+    file.extend_from_slice(&[0x53, 0x80, 0x67]);
+    file.push(0x80 | segment.len() as u8);
+    file.extend_from_slice(&segment);
+
+    let report = MediaInfo::open_buffer(&file).unwrap();
+    assert_eq!(report.audios.len(), 1);
+    let a = &report.audios[0];
+    assert_eq!(a.format, vuio_media_info::AudioCodec::AAC);
+    assert_eq!(a.channels, 1);
+    assert_eq!(a.sampling_rate, 48000);
+}

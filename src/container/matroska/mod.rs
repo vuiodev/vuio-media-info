@@ -1431,79 +1431,99 @@ impl MatroskaDemuxer {
                 return;
             }
 
-            // Check for AC-3 / E-AC-3 (0x0B77)
-            if let Some(pos) = frame_payload
-                .windows(2)
-                .position(|w| w == [0x0B, 0x77] || w == [0x77, 0x0B])
-            {
-                let slice = if frame_payload[pos] == 0x77 {
-                    let mut swapped = Vec::with_capacity(frame_payload.len() - pos);
-                    for chunk in frame_payload[pos..].as_chunks::<2>().0 {
-                        swapped.push(chunk[1]);
-                        swapped.push(chunk[0]);
-                    }
-                    swapped
-                } else {
-                    frame_payload[pos..].to_vec()
-                };
+            // Only probe bitstream blocks for codecs where container headers lack bit rate / profile details
+            let can_probe_ac3 = matches!(
+                audio.format,
+                AudioCodec::AC3 | AudioCodec::EAC3 | AudioCodec::Other(_)
+            );
+            let can_probe_dts = matches!(audio.format, AudioCodec::DTS | AudioCodec::Other(_));
+            let can_probe_truehd =
+                matches!(audio.format, AudioCodec::TrueHD | AudioCodec::Other(_));
 
-                if let Ok(ac3) = Ac3Header::parse(&slice) {
-                    audio.bit_rate = Some(ac3.bit_rate);
-                    audio.sampling_rate = ac3.sample_rate;
-                    audio.channels = ac3.channels;
-                    audio.channel_layout = Some(ac3.channel_layout);
-                    audio.bit_depth = Some(24);
-                    if ac3.is_eac3 {
-                        audio.format = AudioCodec::EAC3;
-                        if ac3.dolby_atmos_present {
-                            audio.format_info =
-                                Some("Dolby Digital Plus with Dolby Atmos (JOC)".to_string());
-                        } else {
-                            audio.format_info = Some("Dolby Digital Plus".to_string());
+            if !can_probe_ac3 && !can_probe_dts && !can_probe_truehd {
+                probed_tracks.insert(track_num);
+                return;
+            }
+
+            // Check for AC-3 / E-AC-3 (0x0B77)
+            if can_probe_ac3 {
+                if let Some(pos) = frame_payload
+                    .windows(2)
+                    .position(|w| w == [0x0B, 0x77] || w == [0x77, 0x0B])
+                {
+                    let slice = if frame_payload[pos] == 0x77 {
+                        let mut swapped = Vec::with_capacity(frame_payload.len() - pos);
+                        for chunk in frame_payload[pos..].as_chunks::<2>().0 {
+                            swapped.push(chunk[1]);
+                            swapped.push(chunk[0]);
                         }
+                        swapped
                     } else {
-                        audio.format = AudioCodec::AC3;
-                        audio.format_info = Some("Dolby Digital".to_string());
-                        audio.format_profile = Some(if ac3.channels == 6 {
-                            "Dolby Digital 5.1".to_string()
+                        frame_payload[pos..].to_vec()
+                    };
+
+                    if let Ok(ac3) = Ac3Header::parse(&slice) {
+                        audio.bit_rate = Some(ac3.bit_rate);
+                        audio.sampling_rate = ac3.sample_rate;
+                        audio.channels = ac3.channels;
+                        audio.channel_layout = Some(ac3.channel_layout);
+                        audio.bit_depth = Some(24);
+                        if ac3.is_eac3 {
+                            audio.format = AudioCodec::EAC3;
+                            if ac3.dolby_atmos_present {
+                                audio.format_info =
+                                    Some("Dolby Digital Plus with Dolby Atmos (JOC)".to_string());
+                            } else {
+                                audio.format_info = Some("Dolby Digital Plus".to_string());
+                            }
                         } else {
-                            "Dolby Digital Stereo".to_string()
-                        });
+                            audio.format = AudioCodec::AC3;
+                            audio.format_info = Some("Dolby Digital".to_string());
+                            audio.format_profile = Some(if ac3.channels == 6 {
+                                "Dolby Digital 5.1".to_string()
+                            } else {
+                                "Dolby Digital Stereo".to_string()
+                            });
+                        }
+                        probed_tracks.insert(track_num);
+                        return;
                     }
-                    probed_tracks.insert(track_num);
-                    return;
                 }
             }
 
             // Check for DTS (0x7FFE8001 / 0x1FFFE800 / 0xFE7F0180)
-            if let Some(pos) = frame_payload.windows(4).position(|w| {
-                w == [0x7F, 0xFE, 0x80, 0x01]
-                    || w == [0x1F, 0xFF, 0xE8, 0x00]
-                    || w == [0xFE, 0x7F, 0x01, 0x80]
-            }) {
-                if let Ok(dts) = DtsHeader::parse(&frame_payload[pos..]) {
-                    audio.bit_rate = Some(dts.bit_rate);
-                    audio.sampling_rate = dts.sample_rate;
-                    audio.channels = dts.channels;
-                    audio.channel_layout = Some(dts.channel_layout);
-                    audio.format_profile = Some(dts.profile_name.to_string());
-                    probed_tracks.insert(track_num);
-                    return;
+            if can_probe_dts {
+                if let Some(pos) = frame_payload.windows(4).position(|w| {
+                    w == [0x7F, 0xFE, 0x80, 0x01]
+                        || w == [0x1F, 0xFF, 0xE8, 0x00]
+                        || w == [0xFE, 0x7F, 0x01, 0x80]
+                }) {
+                    if let Ok(dts) = DtsHeader::parse(&frame_payload[pos..]) {
+                        audio.bit_rate = Some(dts.bit_rate);
+                        audio.sampling_rate = dts.sample_rate;
+                        audio.channels = dts.channels;
+                        audio.channel_layout = Some(dts.channel_layout);
+                        audio.format_profile = Some(dts.profile_name.to_string());
+                        probed_tracks.insert(track_num);
+                        return;
+                    }
                 }
             }
 
             // Check for TrueHD / MLP (0xF8726FBA / 0xF8726FA9)
-            if let Some(pos) = frame_payload
-                .windows(4)
-                .position(|w| w == [0xF8, 0x72, 0x6F, 0xBA] || w == [0xF8, 0x72, 0x6F, 0xA9])
-            {
-                if let Ok(thd) = TrueHdHeader::parse(&frame_payload[pos..]) {
-                    audio.sampling_rate = thd.sample_rate;
-                    audio.channels = thd.channels;
-                    audio.channel_layout = Some(thd.channel_layout);
-                    audio.format_profile = Some(thd.format_profile);
-                    audio.bit_depth = Some(thd.bit_depth);
-                    probed_tracks.insert(track_num);
+            if can_probe_truehd {
+                if let Some(pos) = frame_payload
+                    .windows(4)
+                    .position(|w| w == [0xF8, 0x72, 0x6F, 0xBA] || w == [0xF8, 0x72, 0x6F, 0xA9])
+                {
+                    if let Ok(thd) = TrueHdHeader::parse(&frame_payload[pos..]) {
+                        audio.sampling_rate = thd.sample_rate;
+                        audio.channels = thd.channels;
+                        audio.channel_layout = Some(thd.channel_layout);
+                        audio.format_profile = Some(thd.format_profile);
+                        audio.bit_depth = Some(thd.bit_depth);
+                        probed_tracks.insert(track_num);
+                    }
                 }
             }
         }

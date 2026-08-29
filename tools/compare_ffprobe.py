@@ -43,9 +43,9 @@ def stream_bytes(path, index):
     total = 0
     count = 0
     for line in out.splitlines():
-        line = line.strip().rstrip(",")
-        if line.isdigit():
-            total += int(line)
+        parts = line.strip().split(",")
+        if parts and parts[0].strip().isdigit():
+            total += int(parts[0].strip())
             count += 1
     return total, count
 
