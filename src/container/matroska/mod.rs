@@ -103,6 +103,9 @@ impl MatroskaDemuxer {
         let mut timecode_scale = 1_000_000u64; // Default 1ms
         // Payload bytes seen per track number, used for stream size and bit rate.
         let mut track_bytes: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
+        let mut probed_tracks: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        let mut probed_video: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        let is_large_file = data.len() > 8 * 1024 * 1024;
 
         while offset < data.len() {
             let (id, id_len) = match EbmlVint::read_element_id(data, offset) {
@@ -144,11 +147,28 @@ impl MatroskaDemuxer {
                 }
                 0x1F43B675 => {
                     // Cluster
-                    Self::parse_cluster_blocks(payload, report, &mut track_bytes);
+                    let all_probed = (!report.videos.is_empty()
+                        && probed_video.len() >= report.videos.len())
+                        && (report.audios.is_empty() || probed_tracks.len() >= report.audios.len());
+                    if !is_large_file || !all_probed || offset < 4 * 1024 * 1024 {
+                        Self::parse_cluster_blocks(
+                            payload,
+                            report,
+                            &mut track_bytes,
+                            &mut probed_tracks,
+                            &mut probed_video,
+                        );
+                    }
                 }
                 0xA3 | 0xA0 => {
                     // Direct SimpleBlock or BlockGroup
-                    Self::parse_cluster_blocks(&data[offset..], report, &mut track_bytes);
+                    Self::parse_cluster_blocks(
+                        &data[offset..],
+                        report,
+                        &mut track_bytes,
+                        &mut probed_tracks,
+                        &mut probed_video,
+                    );
                 }
                 _ => {}
             }
@@ -1211,10 +1231,10 @@ impl MatroskaDemuxer {
         data: &[u8],
         report: &mut MediaReport,
         track_bytes: &mut std::collections::HashMap<u32, u64>,
+        probed_tracks: &mut std::collections::HashSet<u32>,
+        probed_video: &mut std::collections::HashSet<u32>,
     ) {
         let mut offset = 0;
-        let mut probed_tracks: std::collections::HashSet<u32> = std::collections::HashSet::new();
-        let mut probed_video: std::collections::HashSet<u32> = std::collections::HashSet::new();
 
         while offset < data.len() {
             let (id, id_len) = match EbmlVint::read_element_id(data, offset) {
@@ -1235,8 +1255,8 @@ impl MatroskaDemuxer {
             if id == 0xA3 || id == 0xA1 {
                 // SimpleBlock or Block
                 Self::accumulate_block_size(payload, track_bytes);
-                Self::probe_block_for_audio(payload, &mut probed_tracks, report);
-                Self::probe_block_for_video(payload, &mut probed_video, report);
+                Self::probe_block_for_audio(payload, probed_tracks, report);
+                Self::probe_block_for_video(payload, probed_video, report);
             } else if id == 0xA0 {
                 // BlockGroup
                 let mut b_off = 0;
@@ -1258,8 +1278,8 @@ impl MatroskaDemuxer {
                     if bid == 0xA1 || bid == 0xA3 {
                         let block = &payload[bpay_off..bpay_off + bsize];
                         Self::accumulate_block_size(block, track_bytes);
-                        Self::probe_block_for_audio(block, &mut probed_tracks, report);
-                        Self::probe_block_for_video(block, &mut probed_video, report);
+                        Self::probe_block_for_audio(block, probed_tracks, report);
+                        Self::probe_block_for_video(block, probed_video, report);
                     }
                     b_off = bpay_off + bsize;
                 }

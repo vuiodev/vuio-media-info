@@ -57,8 +57,16 @@ impl MpegPsDemuxer {
         let mut last_pts = None;
         let mut mux_rate = 0u64;
 
+        const HEAD_SCAN_LIMIT: usize = 4 * 1024 * 1024;
+        let is_large_file = data.len() > HEAD_SCAN_LIMIT * 2;
+        let head_end = if is_large_file {
+            HEAD_SCAN_LIMIT
+        } else {
+            data.len()
+        };
+
         let mut offset = 0usize;
-        while offset + 4 <= data.len() {
+        while offset + 4 <= head_end {
             if data[offset] != 0 || data[offset + 1] != 0 || data[offset + 2] != 1 {
                 offset += 1;
                 continue;
@@ -106,6 +114,49 @@ impl MpegPsDemuxer {
                     }
                 }
                 _ => offset += 4,
+            }
+        }
+
+        if is_large_file {
+            let tail_start = data.len().saturating_sub(HEAD_SCAN_LIMIT);
+            let mut offset = tail_start;
+            while offset + 4 <= data.len() {
+                if data[offset] != 0 || data[offset + 1] != 0 || data[offset + 2] != 1 {
+                    offset += 1;
+                    continue;
+                }
+                let start_code = data[offset + 3];
+                match start_code {
+                    0xBA => {
+                        if let Some((scr, rate, len)) = Self::parse_pack_header(&data[offset..]) {
+                            last_scr = Some(scr);
+                            if rate > 0 {
+                                mux_rate = rate;
+                            }
+                            offset += len;
+                        } else {
+                            offset += 4;
+                        }
+                    }
+                    0xC0..=0xEF | 0xBD | 0xFD => {
+                        if let Some(len) = Self::pes_packet_len(&data[offset..]) {
+                            let packet_end = (offset + 6 + len).min(data.len());
+                            let packet = &data[offset..packet_end];
+                            if let Some((_, _, pts)) = Self::pes_payload(packet, start_code) {
+                                if let Some(pts) = pts {
+                                    last_pts = Some(last_pts.map_or(pts, |p: u64| p.max(pts)));
+                                }
+                            }
+                            offset = packet_end;
+                            if len == 0 {
+                                offset += 1;
+                            }
+                        } else {
+                            offset += 4;
+                        }
+                    }
+                    _ => offset += 4,
+                }
             }
         }
 

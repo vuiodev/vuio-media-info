@@ -124,7 +124,15 @@ impl MpegTsDemuxer {
         let mut first_pcr: Option<u64> = None;
         let mut last_pcr: Option<u64> = None;
 
-        while offset + packet_size <= data.len() {
+        const HEAD_SCAN_LIMIT: usize = 4 * 1024 * 1024;
+        let is_large_file = data.len() > HEAD_SCAN_LIMIT * 2;
+        let head_end = if is_large_file {
+            HEAD_SCAN_LIMIT
+        } else {
+            data.len()
+        };
+
+        while offset + packet_size <= head_end {
             let pkt = &data[offset + packet_prefix..offset + packet_size];
             if pkt[0] != 0x47 {
                 offset += 1;
@@ -221,6 +229,30 @@ impl MpegTsDemuxer {
             }
 
             offset += packet_size;
+        }
+
+        // On large files, scan the tail region to find the last PCR for duration
+        if is_large_file {
+            let tail_start = data.len().saturating_sub(HEAD_SCAN_LIMIT);
+            let mut tail_offset = tail_start - (tail_start % packet_size);
+            while tail_offset + packet_size <= data.len() {
+                let pkt = &data[tail_offset + packet_prefix..tail_offset + packet_size];
+                if pkt[0] == 0x47 {
+                    let adaptation_control = (pkt[3] >> 4) & 0x03;
+                    if adaptation_control == 2 || adaptation_control == 3 {
+                        let adapt_len = pkt[4] as usize;
+                        if adapt_len >= 7 && pkt.len() > 11 && (pkt[5] & 0x10) != 0 {
+                            let base = ((pkt[6] as u64) << 25)
+                                | ((pkt[7] as u64) << 17)
+                                | ((pkt[8] as u64) << 9)
+                                | ((pkt[9] as u64) << 1)
+                                | ((pkt[10] as u64) >> 7);
+                            last_pcr = Some(base);
+                        }
+                    }
+                }
+                tail_offset += packet_size;
+            }
         }
 
         // PCR ticks at 90 kHz; its span across the file is the program duration.

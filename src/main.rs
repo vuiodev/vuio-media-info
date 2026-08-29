@@ -141,17 +141,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn collect_files(dir: &Path, recursive: bool, list: &mut Vec<PathBuf>) -> std::io::Result<()> {
-    if dir.is_dir() {
-        for entry in std::fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_dir() {
-                if recursive {
-                    collect_files(&path, true, list)?;
-                }
-            } else {
-                list.push(path);
-            }
+    let mut walk = jwalk::WalkDir::new(dir).skip_hidden(true);
+    if !recursive {
+        walk = walk.max_depth(1);
+    }
+    for entry in walk.into_iter().flatten() {
+        if entry.file_type().is_file() {
+            list.push(entry.path());
         }
     }
     Ok(())

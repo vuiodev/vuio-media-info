@@ -5,6 +5,7 @@ members = [
 ]
 default-members = [
     ".",
+    "crates/mediainfo-gui",
 ]
 resolver = "2"
 

@@ -420,6 +420,8 @@ impl RiffDemuxer {
     /// the two-digit stream number that prefixes the chunk id.
     fn accumulate_movi_sizes(data: &[u8], ctx: &mut AviCtx) {
         let mut offset = 0;
+        let is_large = data.len() > 8 * 1024 * 1024;
+        let total_streams = ctx.video_streams.len() + ctx.audio_streams.len();
         while offset + 8 <= data.len() {
             let id = &data[offset..offset + 4];
             let size = u32::from_le_bytes([
@@ -440,6 +442,13 @@ impl RiffDemuxer {
                         ctx.first_frame.push((stream, head.to_vec()));
                     }
                 }
+            }
+            if is_large
+                && total_streams > 0
+                && ctx.first_frame.len() >= total_streams
+                && offset > 4 * 1024 * 1024
+            {
+                break;
             }
             offset += 8 + size + (size & 1);
         }

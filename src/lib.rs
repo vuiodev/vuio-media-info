@@ -136,60 +136,32 @@ impl MediaInfo {
             return Ok(empty);
         }
 
-        // Fast Header Probe: read the file in one go when it is small enough to parse
-        // in-memory in microseconds.
-        //
-        // The probe result is only usable when the whole file was read. Demuxers that
-        // derive stream sizes and bit rates by walking every cluster, packet or chunk
-        // (Matroska, MPEG-TS, MPEG-PS, AVI) would otherwise report totals for the first
-        // 4 MB and silently under-report every larger file.
-        const PROBE_LIMIT: usize = 4 * 1024 * 1024;
-        let initial_chunk_size = (file_len as usize).min(PROBE_LIMIT);
-        let complete_read = file_len as usize <= PROBE_LIMIT;
-        let mut buffer = vec![0u8; initial_chunk_size];
-        file.read_exact(&mut buffer)?;
-
-        let probe = if complete_read {
-            ContainerParser::parse(&buffer)
+        // Fast zero-copy path:
+        // - Small files (< 64 KB): Direct read to avoid kernel mmap page table setup overhead.
+        // - Larger files (>= 64 KB): Instant zero-copy memory map without redundant buffer reads.
+        const DIRECT_READ_LIMIT: u64 = 64 * 1024;
+        let mut report = if file_len <= DIRECT_READ_LIMIT {
+            let mut buffer = vec![0u8; file_len as usize];
+            file.read_exact(&mut buffer)?;
+            ContainerParser::parse(&buffer)?
         } else {
-            Err(MediaInfoError::UnsupportedFormat(
-                "file exceeds the in-memory probe limit".to_string(),
-            ))
+            let mmap = unsafe { memmap2::Mmap::map(&file)? };
+            let _ = mmap.advise_range(
+                memmap2::Advice::WillNeed,
+                0,
+                (file_len as usize).min(4 * 1024 * 1024),
+            );
+            ContainerParser::parse(&mmap)?
         };
 
-        let mut report = match probe {
-            Ok(mut rep)
-                if !rep.videos.is_empty()
-                    || !rep.audios.is_empty()
-                    || rep.general.duration_ms.is_some() =>
-            {
-                rep.general.file_size = file_len;
-                if let Some(dur_ms) = rep.general.duration_ms
-                    && dur_ms > 0.0
-                    && file_len > 0
-                {
-                    rep.general.overall_bitrate =
-                        Some(((file_len as f64 * 8.0) / (dur_ms / 1000.0)) as u64);
-                }
-                rep
-            }
-            _ => {
-                // Larger files, and files whose headers sit past the probe (an MP4 with a
-                // trailing moov), are parsed through a memory map so demuxers still only
-                // fault in the pages they actually walk.
-                let mmap = unsafe { memmap2::Mmap::map(&file)? };
-                let mut rep = ContainerParser::parse(&mmap)?;
-                rep.general.file_size = file_len;
-                if let Some(dur_ms) = rep.general.duration_ms
-                    && dur_ms > 0.0
-                    && file_len > 0
-                {
-                    rep.general.overall_bitrate =
-                        Some(((file_len as f64 * 8.0) / (dur_ms / 1000.0)) as u64);
-                }
-                rep
-            }
-        };
+        report.general.file_size = file_len;
+        if let Some(dur_ms) = report.general.duration_ms
+            && dur_ms > 0.0
+            && file_len > 0
+        {
+            report.general.overall_bitrate =
+                Some(((file_len as f64 * 8.0) / (dur_ms / 1000.0)) as u64);
+        }
 
         report.general.file_path = Some(path_ref.to_string_lossy().to_string());
         if report.general.file_name.is_none()
