@@ -534,31 +534,39 @@ jobs:
             STAGING_GUI="stage-gui-${{ matrix.os-arch }}"
             mkdir -p "$STAGING_GUI"
 
-            if [ -f "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}.exe" ]; then
+            if [[ "${{ matrix.runner }}" == macos* ]]; then
+              APP_DIR="$STAGING_GUI/VuioMediaInfo.app"
+              mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
+              cp "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}" "$APP_DIR/Contents/MacOS/VuioMediaInfo"
+              chmod +x "$APP_DIR/Contents/MacOS/VuioMediaInfo"
+              cp crates/mediainfo-gui/icons/icon.icns "$APP_DIR/Contents/Resources/icon.icns"
+              echo -n "APPL????" > "$APP_DIR/Contents/PkgInfo"
+              printf '%s\n' \
+                '<?xml version="1.0" encoding="UTF-8"?>' \
+                '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+                '<plist version="1.0">' \
+                '<dict>' \
+                '    <key>CFBundleExecutable</key><string>VuioMediaInfo</string>' \
+                '    <key>CFBundleIconFile</key><string>icon.icns</string>' \
+                '    <key>CFBundleIdentifier</key><string>com.mediainfo.desktop</string>' \
+                '    <key>CFBundleName</key><string>VuioMediaInfo</string>' \
+                '    <key>CFBundleDisplayName</key><string>VuIO Media Info</string>' \
+                '    <key>CFBundlePackageType</key><string>APPL</string>' \
+                "    <key>CFBundleShortVersionString</key><string>${VERSION}</string>" \
+                "    <key>CFBundleVersion</key><string>${VERSION}</string>" \
+                '    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>' \
+                '    <key>LSMinimumSystemVersion</key><string>10.13</string>' \
+                '    <key>NSHighResolutionCapable</key><true/>' \
+                '    <key>NSPrincipalClass</key><string>NSApplication</string>' \
+                '    <key>NSSupportsAutomaticGraphicsSwitching</key><true/>' \
+                '    <key>NSRequiresAquaSystemAppearance</key><false/>' \
+                '</dict>' \
+                '</plist>' > "$APP_DIR/Contents/Info.plist"
+              codesign --force --deep --sign - "$APP_DIR"
+            elif [ -f "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}.exe" ]; then
               cp "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}.exe" "$STAGING_GUI/"
             elif [ -f "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}" ]; then
               cp "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}" "$STAGING_GUI/"
-              if [[ "${{ matrix.runner }}" == macos* ]]; then
-                APP_DIR="$STAGING_GUI/VuioMediaInfo.app"
-                mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
-                cp "$RELEASE_DIR/${{ env.GUI_BINARY_NAME }}" "$APP_DIR/Contents/MacOS/VuioMediaInfo"
-                cp crates/mediainfo-gui/icons/icon.icns "$APP_DIR/Contents/Resources/icon.icns"
-                printf '%s\n' \
-                  '<?xml version="1.0" encoding="UTF-8"?>' \
-                  '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
-                  '<plist version="1.0">' \
-                  '<dict>' \
-                  '    <key>CFBundleExecutable</key><string>VuioMediaInfo</string>' \
-                  '    <key>CFBundleIconFile</key><string>icon.icns</string>' \
-                  '    <key>CFBundleIdentifier</key><string>com.mediainfo.desktop</string>' \
-                  '    <key>CFBundleName</key><string>VuioMediaInfo</string>' \
-                  '    <key>CFBundlePackageType</key><string>APPL</string>' \
-                  '    <key>CFBundleShortVersionString</key><string>0.1.1</string>' \
-                  '    <key>LSMinimumSystemVersion</key><string>10.13</string>' \
-                  '    <key>NSHighResolutionCapable</key><true/>' \
-                  '</dict>' \
-                  '</plist>' > "$APP_DIR/Contents/Info.plist"
-              fi
             fi
             cp README.md LICENSE-MIT LICENSE-APACHE "$STAGING_GUI/" 2>/dev/null || true
 
