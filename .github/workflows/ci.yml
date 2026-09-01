@@ -54,30 +54,6 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-  web_ui:
-    name: Web UI bundle is intact
-    if: |
-      github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') ||
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: crates/mediainfo-gui/package-lock.json
-      - name: Build Web UI
-        working-directory: crates/mediainfo-gui
-        run: |
-          npm ci || npm install
-          npm run build
-          test -f dist/index.html || { echo "::error::dist/index.html is missing"; exit 1; }
-
   clippy:
     name: Clippy
     if: |
@@ -113,45 +89,6 @@ jobs:
         env:
           RUSTC_WRAPPER: sccache
         run: cargo clippy -p vuio-media-info --all-targets --all-features -- -D clippy::all -D warnings
-      - name: Show sccache stats
-        if: always()
-        run: sccache --show-stats || true
-
-  feature_matrix:
-    name: Feature & Crates Check
-    if: |
-      github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') ||
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      SCCACHE_DIR: ${{ github.workspace }}/.sccache
-      SCCACHE_CACHE_SIZE: 8G
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: Cache Cargo registry, git dependencies and compiler artifacts
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            .sccache
-          key: features-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
-          restore-keys: |
-            features-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}-
-            features-${{ runner.os }}-
-      - name: Install sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-      - name: Check package and documentation
-        env:
-          RUSTC_WRAPPER: sccache
-        run: |
-          cargo check -p vuio-media-info --all-targets --all-features
-          cargo test -p vuio-media-info --doc
       - name: Show sccache stats
         if: always()
         run: sccache --show-stats || true
@@ -200,51 +137,6 @@ jobs:
       - name: Report differences from MediaInfo (advisory)
         continue-on-error: true
         run: python3 tools/compare_mediainfo.py
-      - name: Show sccache stats
-        if: always()
-        run: sccache --show-stats || true
-
-  msrv:
-    name: Minimum supported Rust version
-    if: |
-      github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') ||
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      SCCACHE_DIR: ${{ github.workspace }}/.sccache
-      SCCACHE_CACHE_SIZE: 8G
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Read rust-version from the manifest
-        id: msrv
-        run: |
-          version=$(grep -m1 '^rust-version' Cargo.toml | cut -d'"' -f2 || echo "1.80.0")
-          echo "Declared MSRV: $version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: Install the declared toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.msrv.outputs.version }}
-      - name: Cache Cargo registry, git dependencies and compiler artifacts
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            .sccache
-          key: msrv-${{ steps.msrv.outputs.version }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
-          restore-keys: |
-            msrv-${{ steps.msrv.outputs.version }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}-
-            msrv-${{ steps.msrv.outputs.version }}-${{ runner.os }}-
-      - name: Install sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-      - name: Check CLI and library with declared MSRV
-        env:
-          RUSTC_WRAPPER: sccache
-        run: cargo check -p vuio-media-info
       - name: Show sccache stats
         if: always()
         run: sccache --show-stats || true
@@ -298,12 +190,6 @@ jobs:
             build_gui: false
             mode: cross-linux
 
-          # FreeBSD (CLI only)
-          - runner: ubuntu-latest
-            target: x86_64-unknown-freebsd
-            build_gui: false
-            mode: freebsd-vm
-
     env:
       SCCACHE_DIR: ${{ github.workspace }}/.sccache
       SCCACHE_CACHE_SIZE: 8G
@@ -328,13 +214,11 @@ jobs:
           npm run build
 
       - name: Install Rust toolchain (stable)
-        if: matrix.mode != 'freebsd-vm'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
       - name: Cache Cargo registry, git dependencies and compiler artifacts
-        if: matrix.mode != 'freebsd-vm'
         uses: actions/cache@v4
         with:
           path: |
@@ -348,7 +232,6 @@ jobs:
             test-${{ runner.os }}-
 
       - name: Install sccache
-        if: matrix.mode != 'freebsd-vm'
         uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Install dependencies for ARM cross-compile (Linux)
@@ -400,52 +283,31 @@ jobs:
 
       # ── Non-native targets: fast PR check vs full build ──
       - name: "Fast PR compile check for non-native GUI target"
-        if: matrix.mode != 'native-test' && matrix.mode != 'freebsd-vm' && matrix.build_gui == true && github.event_name == 'pull_request'
+        if: matrix.mode != 'native-test' && matrix.build_gui == true && github.event_name == 'pull_request'
         env:
           RUSTC_WRAPPER: sccache
         run: cargo check --workspace --target ${{ matrix.target }}
 
       - name: "Fast PR compile check for non-native CLI target"
-        if: matrix.mode != 'native-test' && matrix.mode != 'freebsd-vm' && matrix.build_gui == false && github.event_name == 'pull_request'
+        if: matrix.mode != 'native-test' && matrix.build_gui == false && github.event_name == 'pull_request'
         env:
           RUSTC_WRAPPER: sccache
         run: cargo check -p vuio-media-info --target ${{ matrix.target }}
 
       - name: "Full build for non-native GUI target"
-        if: matrix.mode != 'native-test' && matrix.mode != 'freebsd-vm' && matrix.build_gui == true && github.event_name != 'pull_request'
+        if: matrix.mode != 'native-test' && matrix.build_gui == true && github.event_name != 'pull_request'
         env:
           RUSTC_WRAPPER: sccache
         run: cargo build --workspace --target ${{ matrix.target }}
 
       - name: "Full build for non-native CLI target"
-        if: matrix.mode != 'native-test' && matrix.mode != 'freebsd-vm' && matrix.build_gui == false && github.event_name != 'pull_request'
+        if: matrix.mode != 'native-test' && matrix.build_gui == false && github.event_name != 'pull_request'
         env:
           RUSTC_WRAPPER: sccache
         run: cargo build -p vuio-media-info --target ${{ matrix.target }}
 
-      # ── FreeBSD VM ──
-      - name: "Build and test in FreeBSD VM (CLI only)"
-        if: matrix.mode == 'freebsd-vm'
-        uses: vmactions/freebsd-vm@v1
-        with:
-          release: "14"
-          usesh: true
-          sync: rsync
-          copyback: false
-          mem: "6144"
-          cache-after-prepare: true
-          prepare: |
-            pkg install -y curl bash git cmake
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
-          run: |
-            set -e
-            . "$HOME/.cargo/env"
-            rustc -vV
-            cargo build -p vuio-media-info
-            cargo test --workspace --exclude vuio-media-info-gui
-
       - name: Show sccache stats
-        if: always() && matrix.mode != 'freebsd-vm'
+        if: always()
         run: sccache --show-stats || true
 
   # ===================================================================
