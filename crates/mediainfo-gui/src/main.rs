@@ -51,7 +51,9 @@ fn main() {
             if window.label() == "main" {
                 match event {
                     tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
-                        if let Some(settings_state) = window.app_handle().try_state::<SettingsState>() {
+                        if let Some(settings_state) =
+                            window.app_handle().try_state::<SettingsState>()
+                        {
                             let is_max = window.is_maximized().unwrap_or(false);
                             let is_min = window.is_minimized().unwrap_or(false);
                             if !is_min {
@@ -70,7 +72,9 @@ fn main() {
                         }
                     }
                     tauri::WindowEvent::CloseRequested { .. } => {
-                        if let Some(settings_state) = window.app_handle().try_state::<SettingsState>() {
+                        if let Some(settings_state) =
+                            window.app_handle().try_state::<SettingsState>()
+                        {
                             settings_state.save();
                         }
                     }

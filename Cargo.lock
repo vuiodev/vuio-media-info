@@ -4128,7 +4128,7 @@ dependencies = [
 
 [[package]]
 name = "vuio-media-info"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "bitflags 2.13.1",
  "byteorder",
@@ -4148,7 +4148,7 @@ dependencies = [
 
 [[package]]
 name = "vuio-media-info-gui"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "jwalk",
  "rayon",

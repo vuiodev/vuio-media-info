@@ -1,11 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { AppSettings, MediaReport, ComparisonDiff } from "./types";
+import { AppSettings, MediaReport } from "./types";
 import { renderSummaryView } from "./views/summary";
 import { renderTreeView, renderTreeSections } from "./views/tree";
 import { renderRawView } from "./views/raw";
-import { renderDiffView } from "./views/diff";
+import { renderDiffView, CompareSlot, CompareFilter, buildComparisonRows } from "./views/diff";
 import { renderBatchView } from "./views/batch";
 
 export class MediaInfoApp {
@@ -16,13 +16,15 @@ export class MediaInfoApp {
   private batchReports: MediaReport[] = [];
   private currentBatchIndex = 0;
   private supportedExtensions: string[] = [];
-  private currentDiff?: ComparisonDiff;
-  private diffFileA?: string;
-  private diffFileB?: string;
   private treeSearchQuery = "";
   private settings: AppSettings = { remember_window_state: true, window_maximized: false };
   private isSettingsOpen = false;
-  private appVersion = "0.1.5";
+  private appVersion = "0.1.4";
+
+  // Multi-file comparison state (up to 4 files max)
+  private compareSlots: CompareSlot[] = [];
+  private compareFilter: CompareFilter = "all";
+  private compareSearchQuery = "";
 
   constructor() {
     console.log("[app] constructor called");
@@ -102,10 +104,10 @@ export class MediaInfoApp {
           <button id="btn-prev-file" class="btn btn-stepper" ${this.currentBatchIndex === 0 ? "disabled" : ""} title="Previous File ([ or Alt+Left])">◀ Prev</button>
           <select id="quick-file-select" class="quick-select-dropdown">
             ${this.batchReports.map((r, i) => {
-      const name = r.general?.file_name || r.general?.file_path?.split("/").pop() || `File #${i + 1}`;
-      const fmt = r.general?.format || "";
-      return `<option value="${i}" ${i === this.currentBatchIndex ? "selected" : ""}>${i + 1}. ${name} (${fmt})</option>`;
-    }).join("")}
+              const name = r.general?.file_name || r.general?.file_path?.split("/").pop() || `File #${i + 1}`;
+              const fmt = r.general?.format || "";
+              return `<option value="${i}" ${i === this.currentBatchIndex ? "selected" : ""}>${i + 1}. ${name} (${fmt})</option>`;
+            }).join("")}
           </select>
           <button id="btn-next-file" class="btn btn-stepper" ${this.currentBatchIndex >= this.batchReports.length - 1 ? "disabled" : ""} title="Next File (] or Alt+Right)">Next ▶</button>
         </div>
@@ -175,7 +177,7 @@ export class MediaInfoApp {
         <div class="tab-pill ${this.activeTab === "summary" ? "active" : ""}" data-tab="summary">Dashboard</div>
         <div class="tab-pill ${this.activeTab === "tree" ? "active" : ""}" data-tab="tree">Tree View</div>
         <div class="tab-pill ${this.activeTab === "raw" ? "active" : ""}" data-tab="raw">Raw Export</div>
-        <div class="tab-pill ${this.activeTab === "diff" ? "active" : ""}" data-tab="diff">Compare</div>
+        <div class="tab-pill ${this.activeTab === "diff" ? "active" : ""}" data-tab="diff">Compare (${this.compareSlots.length})</div>
         <div class="tab-pill ${this.activeTab === "batch" ? "active" : ""}" data-tab="batch">Batch (${this.batchReports.length})</div>
       </div>
 
@@ -192,7 +194,16 @@ export class MediaInfoApp {
   }
 
   private renderActiveView(): string {
-    if (this.activeTab === "diff") return renderDiffView(this.currentDiff);
+    if (this.activeTab === "diff") {
+      // If slots are empty and current report exists, pre-seed slot 1 for seamless UX
+      if (this.compareSlots.length === 0 && this.currentReport && this.currentReport.general?.file_path) {
+        const path = this.currentReport.general.file_path;
+        const name = this.currentReport.general.file_name || path.split("/").pop() || "Media File";
+        this.compareSlots.push({ path, name, report: this.currentReport });
+      }
+      return renderDiffView(this.compareSlots, this.compareFilter, this.compareSearchQuery, this.batchReports);
+    }
+
     if (this.activeTab === "batch") return renderBatchView(this.batchReports, this.currentBatchIndex);
 
     if (!this.currentReport) {
@@ -277,6 +288,71 @@ export class MediaInfoApp {
         } catch (err) {
           console.error("Failed to reset window geometry:", err);
         }
+        return;
+      }
+
+      // --- Multi-File Compare Actions ---
+      if (target.id === "compare-add-slot-btn" || target.closest("#compare-add-slot-btn")) {
+        await this.addCompareSlotDialog();
+        return;
+      }
+
+      const quickAddBtn = target.closest(".btn-quick-add-compare") as HTMLElement | null;
+      if (quickAddBtn) {
+        const idx = parseInt(quickAddBtn.getAttribute("data-batch-index") || "0", 10);
+        const report = this.batchReports[idx];
+        if (report && this.compareSlots.length < 6) {
+          const path = report.general?.file_path || `File #${idx + 1}`;
+          const name = report.general?.file_name || path.split("/").pop() || `File #${idx + 1}`;
+          if (!this.compareSlots.some((s) => s.path === path)) {
+            this.compareSlots.push({ path, name, report });
+            this.renderShell();
+          }
+        }
+        return;
+      }
+
+      const changeSlotBtn = target.closest(".btn-change-slot") as HTMLElement | null;
+      if (changeSlotBtn) {
+        const slotIdx = parseInt(changeSlotBtn.getAttribute("data-slot-index") || "0", 10);
+        await this.changeCompareSlotDialog(slotIdx);
+        return;
+      }
+
+      const removeSlotBtn = target.closest(".btn-remove-slot") as HTMLElement | null;
+      if (removeSlotBtn) {
+        const slotIdx = parseInt(removeSlotBtn.getAttribute("data-slot-index") || "0", 10);
+        if (slotIdx >= 0 && slotIdx < this.compareSlots.length) {
+          this.compareSlots.splice(slotIdx, 1);
+          this.renderShell();
+        }
+        return;
+      }
+
+      const filterPill = target.closest(".compare-filter-pill") as HTMLElement | null;
+      if (filterPill) {
+        const filter = filterPill.getAttribute("data-filter") as CompareFilter;
+        if (filter && filter !== this.compareFilter) {
+          this.compareFilter = filter;
+          this.renderShell();
+        }
+        return;
+      }
+
+      if (target.id === "btn-clear-compare-search" || target.closest("#btn-clear-compare-search")) {
+        this.compareSearchQuery = "";
+        this.renderShell();
+        return;
+      }
+
+      if (target.id === "btn-compare-clear" || target.closest("#btn-compare-clear")) {
+        this.compareSlots = [];
+        this.renderShell();
+        return;
+      }
+
+      if (target.id === "btn-compare-export-csv" || target.closest("#btn-compare-export-csv")) {
+        this.exportCompareCsv();
         return;
       }
 
@@ -366,26 +442,6 @@ export class MediaInfoApp {
         return;
       }
 
-      // Diff select A/B
-      if (target.id === "select-diff-a-btn") {
-        const path = await this.pickSingleFile();
-        if (path) {
-          this.diffFileA = path;
-          target.innerText = `A: ${path.split("/").pop()}`;
-          if (this.diffFileA && this.diffFileB) await this.runDiff();
-        }
-        return;
-      }
-      if (target.id === "select-diff-b-btn") {
-        const path = await this.pickSingleFile();
-        if (path) {
-          this.diffFileB = path;
-          target.innerText = `B: ${path.split("/").pop()}`;
-          if (this.diffFileA && this.diffFileB) await this.runDiff();
-        }
-        return;
-      }
-
       // Batch row click
       const batchRow = target.closest(".batch-row") as HTMLElement | null;
       if (batchRow) {
@@ -434,6 +490,23 @@ export class MediaInfoApp {
             } else {
               badge.classList.remove("active");
             }
+          }
+        }
+      });
+    }
+
+    const compareInput = document.getElementById("compare-search-input") as HTMLInputElement | null;
+    if (compareInput) {
+      compareInput.addEventListener("input", () => {
+        this.compareSearchQuery = compareInput.value;
+        const mainView = document.getElementById("main-content-view");
+        if (mainView && this.activeTab === "diff") {
+          mainView.innerHTML = renderDiffView(this.compareSlots, this.compareFilter, this.compareSearchQuery, this.batchReports);
+          this.attachViewEvents();
+          const newInput = document.getElementById("compare-search-input") as HTMLInputElement | null;
+          if (newInput) {
+            newInput.focus();
+            newInput.setSelectionRange(this.compareSearchQuery.length, this.compareSearchQuery.length);
           }
         }
       });
@@ -524,6 +597,81 @@ export class MediaInfoApp {
     } catch (err) {
       console.warn("[app] drag-drop setup failed (web preview mode?):", err);
     }
+  }
+
+  // --- Multi-file compare dialogs ---
+  private async addCompareSlotDialog() {
+    if (this.compareSlots.length >= 6) return;
+    const remaining = 6 - this.compareSlots.length;
+    try {
+      const exts = this.supportedExtensions.length > 0
+        ? this.supportedExtensions
+        : ["mp4", "mkv", "mov", "avi", "wav", "flac", "mp3", "aac", "m4a", "webm", "ts", "ogg", "opus", "dts", "ac3", "mpc"];
+      const selected = await open({
+        multiple: remaining > 1,
+        filters: [{
+          name: "Media Files",
+          extensions: exts,
+        }],
+      });
+      if (!selected) return;
+      const paths = (Array.isArray(selected) ? selected : [selected]).slice(0, remaining);
+      for (const path of paths) {
+        if (typeof path === "string" && !this.compareSlots.some((s) => s.path === path)) {
+          const report = await invoke<MediaReport>("inspect_file", { path });
+          const name = report.general?.file_name || path.split("/").pop() || "Media File";
+          this.compareSlots.push({ path, name, report });
+        }
+      }
+      this.renderShell();
+    } catch (err) {
+      console.error("[app] addCompareSlot error:", err);
+      this.showError("Failed to add file for comparison: " + err);
+    }
+  }
+
+  private async changeCompareSlotDialog(slotIdx: number) {
+    if (slotIdx < 0 || slotIdx >= this.compareSlots.length) return;
+    const path = await this.pickSingleFile();
+    if (path) {
+      try {
+        const report = await invoke<MediaReport>("inspect_file", { path });
+        const name = report.general?.file_name || path.split("/").pop() || "Media File";
+        this.compareSlots[slotIdx] = { path, name, report };
+        this.renderShell();
+      } catch (err) {
+        console.error("[app] changeCompareSlot error:", err);
+        this.showError("Failed to inspect file for comparison: " + err);
+      }
+    }
+  }
+
+  private exportCompareCsv() {
+    if (this.compareSlots.length < 2) return;
+    const rows = buildComparisonRows(this.compareSlots);
+    const header = [
+      "Category",
+      "Parameter",
+      ...this.compareSlots.map((s, i) => `File ${i + 1} (${s.name})`),
+      "Is_Difference",
+    ];
+
+    const csvLines = [
+      header.map((h) => `"${h.replace(/"/g, '""')}"`).join(","),
+      ...rows.map((r) => [
+        `"${r.category.replace(/"/g, '""')}"`,
+        `"${r.field.replace(/"/g, '""')}"`,
+        ...r.values.map((v) => `"${v.replace(/"/g, '""')}"`),
+        r.isDiff ? "Yes" : "No",
+      ].join(",")),
+    ];
+
+    const blob = new Blob([csvLines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `mediainfo_comparison_${Date.now()}.csv`;
+    link.click();
   }
 
   // --- File dialogs using Tauri dialog plugin ---
@@ -633,19 +781,6 @@ export class MediaInfoApp {
       });
     } catch {
       this.rawContent = JSON.stringify(this.currentReport, null, 2);
-    }
-  }
-
-  private async runDiff() {
-    if (!this.diffFileA || !this.diffFileB) return;
-    try {
-      this.currentDiff = await invoke<ComparisonDiff>("compare_files", {
-        pathA: this.diffFileA,
-        pathB: this.diffFileB,
-      });
-      this.renderShell();
-    } catch (err) {
-      this.showError("Diff error: " + err);
     }
   }
 
