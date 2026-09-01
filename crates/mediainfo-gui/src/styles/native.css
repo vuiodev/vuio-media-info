@@ -1075,3 +1075,16 @@ input:checked + .slider:before {
   color: #34d399;
   border: 1px solid rgba(16, 185, 129, 0.25);
 }
+
+/* Drag & Drop Visual Indicator */
+body.drag-over #app-container {
+  outline: 2px dashed var(--accent-blue);
+  outline-offset: -3px;
+}
+
+body.drag-over .empty-state-card {
+  border-color: var(--accent-blue);
+  background: rgba(59, 130, 246, 0.08);
+  transform: scale(1.01);
+  transition: all 0.15s ease-out;
+}

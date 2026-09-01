@@ -276,14 +276,14 @@ export function renderDiffView(
 
     return `
       <div class="empty-state-card" id="diff-open-card">
-        <div style="font-size: 36px; margin-bottom: 12px;">⚖️</div>
-        <div style="font-weight: 700; font-size: 16px; color: #fff;">Multi-File Media Comparison</div>
+        <div style="font-size: 40px; margin-bottom: 12px;">⚖️</div>
+        <div style="font-weight: 700; font-size: 16px; color: #fff;">Drop Files Here to Compare</div>
         <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px; max-width: 480px; text-align: center; line-height: 1.6;">
-          Compare <strong>2 to 6 files simultaneously</strong> side-by-side. Inspect technical parameters, codecs, resolutions, bitrates, audio tracks, and colorimetry with differential filtering.
+          Drag and drop <strong>2 to 6 media files</strong> anywhere into this window to immediately compare technical parameters, codecs, resolutions, bitrates, audio tracks, and colorimetry side-by-side.
         </div>
         
         <div style="display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; justify-content: center;">
-          <button id="compare-add-slot-btn" class="btn btn-primary">📂 Select Files to Compare</button>
+          <button id="compare-add-slot-btn" class="btn btn-primary">📂 Or Select Files from Disk</button>
         </div>
 
         ${quickAddFromBatch}

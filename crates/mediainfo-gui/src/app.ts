@@ -567,9 +567,20 @@ export class MediaInfoApp {
     try {
       const webview = getCurrentWebview();
       await webview.onDragDropEvent(async (event) => {
-        if (event.payload.type === "drop" && event.payload.paths?.length) {
+        if (event.payload.type === "enter" || event.payload.type === "over") {
+          document.body.classList.add("drag-over");
+        } else if (event.payload.type === "leave") {
+          document.body.classList.remove("drag-over");
+        } else if (event.payload.type === "drop" && event.payload.paths?.length) {
+          document.body.classList.remove("drag-over");
           const paths = event.payload.paths;
-          console.log("[app] drag-drop:", paths);
+          console.log("[app] drag-drop received:", paths, "activeTab:", this.activeTab);
+
+          if (this.activeTab === "diff") {
+            await this.handleCompareDrop(paths);
+            return;
+          }
+
           if (paths.length === 1) {
             // Check if it's a folder scan or a single file
             try {
@@ -596,6 +607,65 @@ export class MediaInfoApp {
       console.log("[app] drag-drop listener registered");
     } catch (err) {
       console.warn("[app] drag-drop setup failed (web preview mode?):", err);
+    }
+  }
+
+  private async handleCompareDrop(paths: string[]) {
+    try {
+      const filesToInspect: string[] = [];
+
+      for (const p of paths) {
+        try {
+          const folderReports = await invoke<MediaReport[]>("scan_folder", { folderPath: p });
+          if (folderReports && folderReports.length > 0) {
+            for (const r of folderReports) {
+              if (r.general?.file_path) {
+                filesToInspect.push(r.general.file_path);
+              }
+            }
+          } else {
+            filesToInspect.push(p);
+          }
+        } catch {
+          filesToInspect.push(p);
+        }
+      }
+
+      if (filesToInspect.length === 0) return;
+
+      console.log("[app] handleCompareDrop: incoming files:", filesToInspect.length, "existing slots:", this.compareSlots.length);
+
+      // Filter out files already present in compare slots to avoid duplicate columns
+      const newPaths = filesToInspect.filter((p) => !this.compareSlots.some((s) => s.path === p));
+      if (newPaths.length === 0) return;
+
+      const availableCapacity = 6 - this.compareSlots.length;
+
+      if (availableCapacity > 0) {
+        // Append newly dropped files up to max capacity (6)
+        const pathsToAdd = newPaths.slice(0, availableCapacity);
+        const reports = await invoke<MediaReport[]>("inspect_batch", { paths: pathsToAdd });
+        for (let i = 0; i < reports.length; i++) {
+          const report = reports[i];
+          const path = report.general?.file_path || pathsToAdd[i];
+          const name = report.general?.file_name || path.split("/").pop() || `File #${this.compareSlots.length + 1}`;
+          this.compareSlots.push({ path, name, report });
+        }
+      } else {
+        // If already full at 6, start fresh comparison with the new dropped set
+        const pathsToLoad = newPaths.slice(0, 6);
+        const reports = await invoke<MediaReport[]>("inspect_batch", { paths: pathsToLoad });
+        this.compareSlots = reports.map((report, i) => {
+          const path = report.general?.file_path || pathsToLoad[i];
+          const name = report.general?.file_name || path.split("/").pop() || `File #${i + 1}`;
+          return { path, name, report };
+        });
+      }
+
+      this.renderShell();
+    } catch (err) {
+      console.error("[app] handleCompareDrop error:", err);
+      this.showError("Compare drop error: " + err);
     }
   }
 

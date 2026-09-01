@@ -1415,7 +1415,7 @@ dependencies = [
 
 [[package]]
 name = "http-body-util"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23169fe34a5fbcdd3f3862e78fb9b6fccd5f02a6dc6f732547005d45631ce71c"
 dependencies = [
@@ -4128,7 +4128,7 @@ dependencies = [
 
 [[package]]
 name = "vuio-media-info"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "bitflags 2.13.1",
  "byteorder",
@@ -4148,7 +4148,7 @@ dependencies = [
 
 [[package]]
 name = "vuio-media-info-gui"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "jwalk",
  "rayon",
