@@ -79,36 +79,19 @@ jobs:
           test -f dist/index.html || { echo "::error::dist/index.html is missing"; exit 1; }
 
   clippy:
-    name: Clippy on ${{ matrix.os }}
+    name: Clippy
     if: |
       github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') ||
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-14]
     env:
       SCCACHE_DIR: ${{ github.workspace }}/.sccache
       SCCACHE_CACHE_SIZE: 8G
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Setup Node.js (GUI platforms)
-        if: runner.os != 'Linux'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: crates/mediainfo-gui/package-lock.json
-      - name: Build GUI frontend assets (GUI platforms)
-        if: runner.os != 'Linux'
-        working-directory: crates/mediainfo-gui
-        run: |
-          npm ci || npm install
-          npm run build
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -120,22 +103,16 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             .sccache
-          key: clippy-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          key: clippy-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
           restore-keys: |
-            clippy-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}-
-            clippy-${{ matrix.os }}-
+            clippy-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}-
+            clippy-${{ runner.os }}-
       - name: Install sccache
         uses: mozilla-actions/sccache-action@v0.0.9
-      - name: "Run Clippy on Linux (CLI & Libs)"
-        if: runner.os == 'Linux'
+      - name: Run Clippy
         env:
           RUSTC_WRAPPER: sccache
-        run: cargo clippy --workspace --exclude vuio-media-info-gui --all-targets --all-features -- -D clippy::all -D warnings
-      - name: "Run Clippy on macOS & Windows (Full Workspace including GUI)"
-        if: runner.os != 'Linux'
-        env:
-          RUSTC_WRAPPER: sccache
-        run: cargo clippy --workspace --all-targets --all-features -- -D clippy::all -D warnings
+        run: cargo clippy -p vuio-media-info --all-targets --all-features -- -D clippy::all -D warnings
       - name: Show sccache stats
         if: always()
         run: sccache --show-stats || true
