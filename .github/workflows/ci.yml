@@ -18,7 +18,7 @@ on:
         required: true
         default: 'test'
       tag_name:
-        description: 'Required for "release" task: The tag for the action (e.g., v0.1.1)'
+        description: 'Required for "release" task: The tag for the action (e.g., v0.1.3)'
         required: false
 
 env:
@@ -26,6 +26,15 @@ env:
   RUST_BACKTRACE: 1
   BINARY_NAME: vuio-media-info
   GUI_BINARY_NAME: vuio-media-info-gui
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   format:
@@ -60,6 +69,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
+          cache-dependency-path: crates/mediainfo-gui/package-lock.json
       - name: Build Web UI
         working-directory: crates/mediainfo-gui
         run: |
@@ -74,10 +85,14 @@ jobs:
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-14]
+    env:
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_CACHE_SIZE: 8G
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -86,6 +101,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
+          cache-dependency-path: crates/mediainfo-gui/package-lock.json
       - name: Build GUI frontend assets (GUI platforms)
         if: runner.os != 'Linux'
         working-directory: crates/mediainfo-gui
@@ -96,21 +113,32 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - name: Cache Cargo dependencies
+      - name: Cache Cargo registry, git dependencies and compiler artifacts
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: clippy-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock') }}
+            ~/.cargo/registry
+            ~/.cargo/git
+            .sccache
+          key: clippy-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            clippy-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}-
+            clippy-${{ matrix.os }}-
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: "Run Clippy on Linux (CLI & Libs)"
         if: runner.os == 'Linux'
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo clippy --workspace --exclude vuio-media-info-gui --all-targets --all-features -- -D clippy::all -D warnings
       - name: "Run Clippy on macOS & Windows (Full Workspace including GUI)"
         if: runner.os != 'Linux'
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo clippy --workspace --all-targets --all-features -- -D clippy::all -D warnings
+      - name: Show sccache stats
+        if: always()
+        run: sccache --show-stats || true
 
   feature_matrix:
     name: Feature & Crates Check
@@ -120,24 +148,36 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_CACHE_SIZE: 8G
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Cache Cargo dependencies
+      - name: Cache Cargo registry, git dependencies and compiler artifacts
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: features-${{ hashFiles('**/Cargo.lock') }}
+            ~/.cargo/registry
+            ~/.cargo/git
+            .sccache
+          key: features-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            features-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}-
+            features-${{ runner.os }}-
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: Check package and documentation
+        env:
+          RUSTC_WRAPPER: sccache
         run: |
           cargo check -p vuio-media-info --all-targets --all-features
           cargo test -p vuio-media-info --doc
+      - name: Show sccache stats
+        if: always()
+        run: sccache --show-stats || true
 
   corpus:
     name: Parser output matches ffprobe
@@ -147,25 +187,34 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_CACHE_SIZE: 8G
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Cache Cargo dependencies
+      - name: Cache Cargo registry, git dependencies and compiler artifacts
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: corpus-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install ffmpeg
+            ~/.cargo/registry
+            ~/.cargo/git
+            .sccache
+          key: corpus-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            corpus-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}-
+            corpus-${{ runner.os }}-
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Install ffmpeg and mediainfo
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg mediainfo
       - name: Build the CLI
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo build --release --bin vuio-media-info
       - name: Generate the sample corpus
         run: ./tools/make_corpus.sh
@@ -173,9 +222,10 @@ jobs:
         run: python3 tools/compare_ffprobe.py
       - name: Report differences from MediaInfo (advisory)
         continue-on-error: true
-        run: |
-          sudo apt-get install -y mediainfo
-          python3 tools/compare_mediainfo.py
+        run: python3 tools/compare_mediainfo.py
+      - name: Show sccache stats
+        if: always()
+        run: sccache --show-stats || true
 
   msrv:
     name: Minimum supported Rust version
@@ -185,6 +235,9 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.task_to_run == 'test')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_CACHE_SIZE: 8G
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -198,17 +251,26 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.msrv.outputs.version }}
-      - name: Cache Cargo dependencies
+      - name: Cache Cargo registry, git dependencies and compiler artifacts
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: msrv-${{ steps.msrv.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}
+            ~/.cargo/registry
+            ~/.cargo/git
+            .sccache
+          key: msrv-${{ steps.msrv.outputs.version }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            msrv-${{ steps.msrv.outputs.version }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}-
+            msrv-${{ steps.msrv.outputs.version }}-${{ runner.os }}-
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: Check CLI and library with declared MSRV
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo check -p vuio-media-info
+      - name: Show sccache stats
+        if: always()
+        run: sccache --show-stats || true
 
   # ===================================================================
   # Run Tests and Checks (Push, Pull Requests, or Manual 'test' run)
@@ -222,40 +284,52 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           # Windows (CLI + GUI)
           - runner: windows-latest
             target: x86_64-pc-windows-msvc
             build_gui: true
+            mode: native-test
           - runner: windows-latest
             target: aarch64-pc-windows-msvc
             build_gui: true
+            mode: build-only
 
           # macOS (CLI + GUI)
           - runner: macos-15-intel
             target: x86_64-apple-darwin
             build_gui: true
+            mode: native-test
           - runner: macos-14
             target: aarch64-apple-darwin
             build_gui: true
+            mode: native-test
 
           # Linux (CLI only)
           - runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             build_gui: false
+            mode: native-test
           - runner: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             build_gui: false
+            mode: cross-linux
           - runner: ubuntu-latest
             target: armv7-unknown-linux-gnueabihf
             build_gui: false
+            mode: cross-linux
 
           # FreeBSD (CLI only)
           - runner: ubuntu-latest
             target: x86_64-unknown-freebsd
             build_gui: false
+            mode: freebsd-vm
+
+    env:
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_CACHE_SIZE: 8G
 
     steps:
       - name: Checkout code
@@ -266,6 +340,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
+          cache-dependency-path: crates/mediainfo-gui/package-lock.json
 
       - name: Build GUI frontend assets (GUI platforms)
         if: matrix.build_gui == true
@@ -275,63 +351,104 @@ jobs:
           npm run build
 
       - name: Install Rust toolchain (stable)
-        if: matrix.target != 'x86_64-unknown-freebsd'
+        if: matrix.mode != 'freebsd-vm'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Cache Cargo dependencies
-        if: matrix.target != 'x86_64-unknown-freebsd'
+      - name: Cache Cargo registry, git dependencies and compiler artifacts
+        if: matrix.mode != 'freebsd-vm'
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+            ~/.cargo/registry
+            ~/.cargo/git
+            .sccache
+          key: test-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            test-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}-
+            test-${{ runner.os }}-${{ matrix.target }}-
+            test-${{ runner.os }}-
 
-      - name: Install cross-linker (Linux ARM)
+      - name: Install sccache
+        if: matrix.mode != 'freebsd-vm'
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Install dependencies for ARM cross-compile (Linux)
         if: runner.os == 'Linux' && (matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'armv7-unknown-linux-gnueabihf')
         run: |
           sudo apt-get update
           if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross
           elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
-            sudo apt-get install -y gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
+            sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libc6-dev-armhf-cross
           fi
 
       - name: Configure cross-linker (Linux ARM)
         if: runner.os == 'Linux' && (matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'armv7-unknown-linux-gnueabihf')
         run: |
-          mkdir -p ~/.cargo
+          mkdir -p ~/.cargo "$HOME/bin"
           if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
             echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
             echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
           elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
+            cat > "$HOME/bin/arm-linux-gnueabihf-gcc-wrap" <<'EOF'
+          #!/usr/bin/env bash
+          args=()
+          for arg in "$@"; do
+            if [[ "$arg" != "-mno-omit-leaf-frame-pointer" ]]; then
+              args+=("$arg")
+            fi
+          done
+          exec arm-linux-gnueabihf-gcc "${args[@]}"
+          EOF
+            chmod +x "$HOME/bin/arm-linux-gnueabihf-gcc-wrap"
             echo '[target.armv7-unknown-linux-gnueabihf]' >> ~/.cargo/config.toml
-            echo 'linker = "arm-linux-gnueabihf-gcc"' >> ~/.cargo/config.toml
+            echo "linker = \"$HOME/bin/arm-linux-gnueabihf-gcc-wrap\"" >> ~/.cargo/config.toml
+            echo "CC_armv7_unknown_linux_gnueabihf=$HOME/bin/arm-linux-gnueabihf-gcc-wrap" >> "$GITHUB_ENV"
           fi
 
-      - name: "Build project (CLI + GUI)"
-        if: matrix.build_gui == true
-        run: cargo build --workspace --target ${{ matrix.target }}
-
-      - name: "Build project (CLI only)"
-        if: matrix.build_gui == false && matrix.target != 'x86_64-unknown-freebsd'
-        run: cargo build -p vuio-media-info --target ${{ matrix.target }}
-
-      - name: "Run tests (Native GUI platforms)"
-        if: matrix.build_gui == true && matrix.target != 'aarch64-pc-windows-msvc'
+      # ── Native Tests ──
+      - name: "Run native tests (Workspace: CLI + GUI)"
+        if: matrix.mode == 'native-test' && matrix.build_gui == true
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo test --workspace --target ${{ matrix.target }}
 
-      - name: "Run tests (Native Linux CLI)"
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
+      - name: "Run native tests (CLI only)"
+        if: matrix.mode == 'native-test' && matrix.build_gui == false
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo test --workspace --exclude vuio-media-info-gui --target ${{ matrix.target }}
 
+      # ── Non-native targets: fast PR check vs full build ──
+      - name: "Fast PR compile check for non-native GUI target"
+        if: matrix.mode != 'native-test' && matrix.mode != 'freebsd-vm' && matrix.build_gui == true && github.event_name == 'pull_request'
+        env:
+          RUSTC_WRAPPER: sccache
+        run: cargo check --workspace --target ${{ matrix.target }}
+
+      - name: "Fast PR compile check for non-native CLI target"
+        if: matrix.mode != 'native-test' && matrix.mode != 'freebsd-vm' && matrix.build_gui == false && github.event_name == 'pull_request'
+        env:
+          RUSTC_WRAPPER: sccache
+        run: cargo check -p vuio-media-info --target ${{ matrix.target }}
+
+      - name: "Full build for non-native GUI target"
+        if: matrix.mode != 'native-test' && matrix.mode != 'freebsd-vm' && matrix.build_gui == true && github.event_name != 'pull_request'
+        env:
+          RUSTC_WRAPPER: sccache
+        run: cargo build --workspace --target ${{ matrix.target }}
+
+      - name: "Full build for non-native CLI target"
+        if: matrix.mode != 'native-test' && matrix.mode != 'freebsd-vm' && matrix.build_gui == false && github.event_name != 'pull_request'
+        env:
+          RUSTC_WRAPPER: sccache
+        run: cargo build -p vuio-media-info --target ${{ matrix.target }}
+
+      # ── FreeBSD VM ──
       - name: "Build and test in FreeBSD VM (CLI only)"
-        if: matrix.target == 'x86_64-unknown-freebsd'
+        if: matrix.mode == 'freebsd-vm'
         uses: vmactions/freebsd-vm@v1
         with:
           release: "14"
@@ -341,7 +458,7 @@ jobs:
           mem: "6144"
           cache-after-prepare: true
           prepare: |
-            pkg install -y curl bash git
+            pkg install -y curl bash git cmake
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
           run: |
             set -e
@@ -349,6 +466,10 @@ jobs:
             rustc -vV
             cargo build -p vuio-media-info
             cargo test --workspace --exclude vuio-media-info-gui
+
+      - name: Show sccache stats
+        if: always() && matrix.mode != 'freebsd-vm'
+        run: sccache --show-stats || true
 
   # ===================================================================
   # Job: Build Release Artifacts
@@ -412,6 +533,10 @@ jobs:
             asset_ext: .tar.gz
             build_gui: false
 
+    env:
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_CACHE_SIZE: 8G
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -421,6 +546,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
+          cache-dependency-path: crates/mediainfo-gui/package-lock.json
 
       - name: Build GUI frontend assets (GUI platforms)
         if: matrix.build_gui == true
@@ -435,34 +562,68 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross-linker (Linux ARM)
+      - name: Cache Cargo registry, git dependencies and compiler artifacts
+        if: matrix.target != 'x86_64-unknown-freebsd'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            .sccache
+          key: release-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            release-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}-
+            release-${{ runner.os }}-${{ matrix.target }}-
+            release-${{ runner.os }}-
+
+      - name: Install sccache
+        if: matrix.target != 'x86_64-unknown-freebsd'
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Install dependencies for ARM cross-compile (Linux)
         if: runner.os == 'Linux' && (matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'armv7-unknown-linux-gnueabihf')
         run: |
           sudo apt-get update
           if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross
           elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
-            sudo apt-get install -y gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
+            sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libc6-dev-armhf-cross
           fi
 
       - name: Configure cross-linker (Linux ARM)
         if: runner.os == 'Linux' && (matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'armv7-unknown-linux-gnueabihf')
         run: |
-          mkdir -p ~/.cargo
+          mkdir -p ~/.cargo "$HOME/bin"
           if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
             echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
             echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
           elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
+            cat > "$HOME/bin/arm-linux-gnueabihf-gcc-wrap" <<'EOF'
+          #!/usr/bin/env bash
+          args=()
+          for arg in "$@"; do
+            if [[ "$arg" != "-mno-omit-leaf-frame-pointer" ]]; then
+              args+=("$arg")
+            fi
+          done
+          exec arm-linux-gnueabihf-gcc "${args[@]}"
+          EOF
+            chmod +x "$HOME/bin/arm-linux-gnueabihf-gcc-wrap"
             echo '[target.armv7-unknown-linux-gnueabihf]' >> ~/.cargo/config.toml
-            echo 'linker = "arm-linux-gnueabihf-gcc"' >> ~/.cargo/config.toml
+            echo "linker = \"$HOME/bin/arm-linux-gnueabihf-gcc-wrap\"" >> ~/.cargo/config.toml
+            echo "CC_armv7_unknown_linux_gnueabihf=$HOME/bin/arm-linux-gnueabihf-gcc-wrap" >> "$GITHUB_ENV"
           fi
 
       - name: "Build binary (Workspace release: CLI + GUI)"
         if: matrix.build_gui == true
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo build --release --workspace --target ${{ matrix.target }}
 
       - name: "Build binary (CLI only release)"
         if: matrix.build_gui == false && matrix.target != 'x86_64-unknown-freebsd'
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo build --release -p vuio-media-info --target ${{ matrix.target }}
 
       - name: "Build binary in FreeBSD VM (CLI only)"
@@ -476,7 +637,7 @@ jobs:
           mem: "6144"
           cache-after-prepare: true
           prepare: |
-            pkg install -y curl bash git
+            pkg install -y curl bash git cmake
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
           run: |
             set -e
@@ -591,6 +752,10 @@ jobs:
           path: |
             ${{ env.BINARY_NAME }}-*
             ${{ env.GUI_BINARY_NAME }}-*
+
+      - name: Show sccache stats
+        if: always() && matrix.target != 'x86_64-unknown-freebsd'
+        run: sccache --show-stats || true
 
   # ===================================================================
   # Job: Create GitHub Release
