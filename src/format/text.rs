@@ -1,4 +1,4 @@
-use crate::core::models::MediaReport;
+use crate::core::{models::MediaReport, types::VideoCodec};
 
 /// Formats `MediaReport` into classic MediaInfo aligned key-value text.
 pub struct TextFormatter;
@@ -168,6 +168,11 @@ impl TextFormatter {
             }
             if let Some(ref lang) = v.language {
                 Self::write_line(&mut out, "Language", lang);
+            }
+            if v.format == VideoCodec::ProRes {
+                for (key, value) in &v.extra {
+                    Self::write_line(&mut out, key, value);
+                }
             }
             Self::write_line(
                 &mut out,

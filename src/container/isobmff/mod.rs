@@ -1180,6 +1180,18 @@ impl IsobmffDemuxer {
                             "Yes".to_string(),
                         );
                     }
+                    if let Some(matrix) = header.luma_quant_matrix.as_ref() {
+                        v.extra.insert(
+                            "ProRes_LumaQuantMatrix".to_string(),
+                            ProResHeader::quant_matrix_string(matrix),
+                        );
+                    }
+                    if let Some(matrix) = header.chroma_quant_matrix.as_ref() {
+                        v.extra.insert(
+                            "ProRes_ChromaQuantMatrix".to_string(),
+                            ProResHeader::quant_matrix_string(matrix),
+                        );
+                    }
                 }
             }
         }

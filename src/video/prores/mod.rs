@@ -53,6 +53,7 @@ impl ProResVariant {
     pub fn chroma_subsampling(&self) -> ChromaSubsampling {
         match self {
             Self::Quad4444 | Self::Quad4444XQ => ChromaSubsampling::YUV444,
+            Self::RawHQ | Self::Raw | Self::Unknown => ChromaSubsampling::Other,
             _ => ChromaSubsampling::YUV422,
         }
     }
@@ -70,8 +71,8 @@ impl ProResVariant {
         match self {
             Self::Proxy | Self::LT | Self::Standard | Self::HQ => Some("P10LE"),
             Self::Quad4444 | Self::Quad4444XQ => Some("P12LE"),
-            // ProRes RAW does not use the YUV component-plane modes above.
-            Self::RawHQ | Self::Raw | Self::Unknown => None,
+            Self::RawHQ | Self::Raw => Some("RAW"),
+            Self::Unknown => None,
         }
     }
 
@@ -129,6 +130,15 @@ pub struct ProResPictureHeader {
 }
 
 impl ProResHeader {
+    /// Formats a quantisation matrix as the 64 values in scan order.
+    pub fn quant_matrix_string(matrix: &[u8; 64]) -> String {
+        matrix
+            .iter()
+            .map(u8::to_string)
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+
     /// Parses a ProRes frame, which begins with a 4-byte size followed by the `icpf`
     /// frame container signature.
     pub fn parse(data: &[u8]) -> Result<Self> {

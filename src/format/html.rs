@@ -81,6 +81,14 @@ impl HtmlFormatter {
                     hdr
                 ));
             }
+            if v.format == crate::core::types::VideoCodec::ProRes {
+                for (key, value) in &v.extra {
+                    html.push_str(&format!(
+                        "<tr><td class=\"label\">{}</td><td class=\"value\">{}</td></tr>\n",
+                        key, value
+                    ));
+                }
+            }
             html.push_str("</table>\n</div>\n");
         }
 

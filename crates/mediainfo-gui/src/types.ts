@@ -64,6 +64,7 @@ export interface VideoTrack {
   language?: string;
   default_flag: boolean;
   forced_flag: boolean;
+  extra?: Record<string, string>;
 }
 
 export interface AudioTrack {

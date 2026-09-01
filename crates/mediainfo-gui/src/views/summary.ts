@@ -69,6 +69,8 @@ function row(key: string, val: string | undefined | null, highlight = false): st
 
 // ── render Video Collapsible Item ──────────────────────────────────────────
 function renderVideoItem(vt: VideoTrack, index: number, total: number): string {
+  const prores = vt.format === "ProRes";
+  const extra = vt.extra || {};
   const profile = vt.format_profile
     ? `${vt.format_profile}${vt.format_level ? "@L" + vt.format_level : ""}`
     : "";
@@ -109,6 +111,16 @@ function renderVideoItem(vt: VideoTrack, index: number, total: number): string {
         ${row("Color primaries", vt.color_primaries)}
         ${row("Transfer char.", vt.transfer_characteristics)}
         ${row("Matrix coefficients", vt.matrix_coefficients)}
+        ${prores ? row("Alpha channel", extra.Alpha_Channel) : ""}
+        ${prores ? row("Alpha bit depth", extra.Alpha_BitDepth ? `${extra.Alpha_BitDepth} bits` : "") : ""}
+        ${prores ? row("Picture header size", extra.ProRes_PictureHeaderSize ? `${extra.ProRes_PictureHeaderSize} bytes` : "") : ""}
+        ${prores ? row("Picture data size", extra.ProRes_PictureDataSize ? `${extra.ProRes_PictureDataSize} bytes` : "") : ""}
+        ${prores ? row("Slice count", extra.ProRes_SliceCount) : ""}
+        ${prores ? row("Declared slice count", extra.ProRes_DeclaredSliceCount) : ""}
+        ${prores ? row("Custom luma quant. matrix", extra.ProRes_CustomLumaQuantMatrix) : ""}
+        ${prores ? row("Custom chroma quant. matrix", extra.ProRes_CustomChromaQuantMatrix) : ""}
+        ${prores ? row("Luma quant. matrix values", extra.ProRes_LumaQuantMatrix) : ""}
+        ${prores ? row("Chroma quant. matrix values", extra.ProRes_ChromaQuantMatrix) : ""}
         ${row("Mastering luminance", vt.mastering_display_luminance)}
         ${row("MaxCLL / MaxFALL", vt.maximum_content_light_level ? `${vt.maximum_content_light_level} / ${vt.maximum_frame_average_light_level ?? "?"} cd/m²` : "")}
         ${row("Dolby Vision", vt.dolby_vision_version ? `Profile ${vt.dolby_vision_profile ?? "?"}, Level ${vt.dolby_vision_level ?? "?"} (${vt.dolby_vision_version})` : "")}

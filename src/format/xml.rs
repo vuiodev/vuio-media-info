@@ -44,6 +44,11 @@ impl XmlFormatter {
             if let Some(ref encoding) = v.color_encoding {
                 Self::write_elem(&mut out, "ColorEncoding", encoding, 6);
             }
+            if v.format == crate::core::types::VideoCodec::ProRes {
+                for (key, value) in &v.extra {
+                    Self::write_elem(&mut out, key, value, 6);
+                }
+            }
             out.push_str("    </track>\n");
         }
 
