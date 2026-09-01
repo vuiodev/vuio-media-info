@@ -154,3 +154,28 @@ pub fn get_app_info() -> AppInfo {
         zero_ffmpeg: true,
     }
 }
+
+#[tauri::command]
+pub fn get_app_settings(
+    state: tauri::State<crate::window_settings::SettingsState>,
+) -> crate::window_settings::AppSettings {
+    state.get_settings()
+}
+
+#[tauri::command]
+pub fn set_remember_window_state(
+    enabled: bool,
+    state: tauri::State<crate::window_settings::SettingsState>,
+) -> crate::window_settings::AppSettings {
+    eprintln!("[cmd] set_remember_window_state({})", enabled);
+    state.set_remember_window_state(enabled)
+}
+
+#[tauri::command]
+pub fn reset_window_geometry(
+    window: tauri::WebviewWindow,
+    state: tauri::State<crate::window_settings::SettingsState>,
+) -> Result<crate::window_settings::AppSettings, String> {
+    eprintln!("[cmd] reset_window_geometry()");
+    state.reset_window_geometry(&window)
+}

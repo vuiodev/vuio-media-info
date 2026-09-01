@@ -155,3 +155,12 @@ export interface ComparisonDiff {
   report_b: MediaReport;
   differences: FieldDiff[];
 }
+
+export interface AppSettings {
+  remember_window_state: boolean;
+  window_x?: number;
+  window_y?: number;
+  window_width?: number;
+  window_height?: number;
+  window_maximized: boolean;
+}

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { MediaReport, ComparisonDiff } from "./types";
+import { AppSettings, MediaReport, ComparisonDiff } from "./types";
 import { renderSummaryView } from "./views/summary";
 import { renderTreeView, renderTreeSections } from "./views/tree";
 import { renderRawView } from "./views/raw";
@@ -20,6 +20,9 @@ export class MediaInfoApp {
   private diffFileA?: string;
   private diffFileB?: string;
   private treeSearchQuery = "";
+  private settings: AppSettings = { remember_window_state: true, window_maximized: false };
+  private isSettingsOpen = false;
+  private appVersion = "0.1.5";
 
   constructor() {
     console.log("[app] constructor called");
@@ -33,6 +36,18 @@ export class MediaInfoApp {
       console.log("[app] supported extensions loaded:", this.supportedExtensions.length);
     } catch (e) {
       console.warn("[app] could not fetch supported extensions:", e);
+    }
+    try {
+      this.settings = await invoke<AppSettings>("get_app_settings");
+      console.log("[app] settings loaded:", this.settings);
+    } catch (e) {
+      console.warn("[app] could not fetch settings:", e);
+    }
+    try {
+      const info = await invoke<{ version: string }>("get_app_info");
+      if (info?.version) this.appVersion = info.version;
+    } catch (e) {
+      console.warn("[app] could not fetch app info:", e);
     }
     this.renderShell();
     this.setupListeners();
@@ -87,15 +102,58 @@ export class MediaInfoApp {
           <button id="btn-prev-file" class="btn btn-stepper" ${this.currentBatchIndex === 0 ? "disabled" : ""} title="Previous File ([ or Alt+Left])">◀ Prev</button>
           <select id="quick-file-select" class="quick-select-dropdown">
             ${this.batchReports.map((r, i) => {
-              const name = r.general?.file_name || r.general?.file_path?.split("/").pop() || `File #${i + 1}`;
-              const fmt = r.general?.format || "";
-              return `<option value="${i}" ${i === this.currentBatchIndex ? "selected" : ""}>${i + 1}. ${name} (${fmt})</option>`;
-            }).join("")}
+      const name = r.general?.file_name || r.general?.file_path?.split("/").pop() || `File #${i + 1}`;
+      const fmt = r.general?.format || "";
+      return `<option value="${i}" ${i === this.currentBatchIndex ? "selected" : ""}>${i + 1}. ${name} (${fmt})</option>`;
+    }).join("")}
           </select>
           <button id="btn-next-file" class="btn btn-stepper" ${this.currentBatchIndex >= this.batchReports.length - 1 ? "disabled" : ""} title="Next File (] or Alt+Right)">Next ▶</button>
         </div>
         <div class="quick-switcher-right">
           <span class="batch-counter-badge">${this.currentBatchIndex + 1} / ${this.batchReports.length}</span>
+        </div>
+      </div>
+    ` : "";
+
+    const settingsModalHtml = this.isSettingsOpen ? `
+      <div class="modal-backdrop" id="settings-modal-backdrop">
+        <div class="modal-card">
+          <div class="modal-header">
+            <div class="modal-title">⚙️ Preferences</div>
+            <button class="modal-close-btn" id="btn-close-settings" title="Close">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="settings-section">
+              <div class="settings-section-title">Window & Interface</div>
+              <div class="settings-item">
+                <div class="settings-item-info">
+                  <div class="settings-item-label">Remember window size & position</div>
+                  <div class="settings-item-desc">Automatically restore dimensions and screen placement on launch</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="toggle-remember-window" ${this.settings.remember_window_state ? "checked" : ""}>
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="settings-item">
+                <div class="settings-item-info">
+                  <div class="settings-item-label">Reset Window Dimensions</div>
+                  <div class="settings-item-desc">Restore default window size (820 × 560) and center on screen</div>
+                </div>
+                <button id="btn-reset-window" class="btn">Reset</button>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-section-title">Engine Information</div>
+              <div class="settings-item">
+                <div class="settings-item-info">
+                  <div class="settings-item-label">VuIO Media Info</div>
+                  <div class="settings-item-desc">v${this.appVersion} &bull; Pure Rust 2024 engine (zero FFmpeg/libmediainfo runtime)</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     ` : "";
@@ -109,6 +167,7 @@ export class MediaInfoApp {
         <div class="titlebar-actions">
           <button id="btn-open-file" class="btn btn-primary">📂 Open File</button>
           <button id="btn-open-folder" class="btn">📁 Open Folder</button>
+          <button id="btn-open-settings" class="btn" title="Preferences (Cmd+, / Ctrl+,)">⚙️</button>
         </div>
       </div>
 
@@ -125,6 +184,8 @@ export class MediaInfoApp {
       <div class="main-viewport" id="main-content-view">
         ${this.renderActiveView()}
       </div>
+
+      ${settingsModalHtml}
     `;
 
     this.attachViewEvents();
@@ -172,7 +233,7 @@ export class MediaInfoApp {
     document.addEventListener("mousedown", (e) => {
       const target = e.target as HTMLElement;
       if (e.button === 0 && target.closest(".titlebar") && !target.closest("button, .btn, .titlebar-actions, select")) {
-        invoke("start_window_drag").catch(() => {});
+        invoke("start_window_drag").catch(() => { });
       }
     });
 
@@ -183,10 +244,41 @@ export class MediaInfoApp {
         const idx = parseInt(select.value, 10);
         await this.switchBatchFile(idx);
       }
+      if (target.id === "toggle-remember-window") {
+        const checkbox = target as HTMLInputElement;
+        try {
+          this.settings = await invoke<AppSettings>("set_remember_window_state", { enabled: checkbox.checked });
+          console.log("[app] updated settings:", this.settings);
+        } catch (err) {
+          console.error("Failed to save remember_window_state setting:", err);
+        }
+      }
     });
 
     document.addEventListener("click", async (e) => {
       const target = e.target as HTMLElement;
+
+      // Settings modal toggles
+      if (target.id === "btn-open-settings" || target.closest("#btn-open-settings")) {
+        this.isSettingsOpen = true;
+        this.renderShell();
+        return;
+      }
+      if (target.id === "btn-close-settings" || target.id === "settings-modal-backdrop") {
+        this.isSettingsOpen = false;
+        this.renderShell();
+        return;
+      }
+      if (target.id === "btn-reset-window") {
+        try {
+          this.settings = await invoke<AppSettings>("reset_window_geometry");
+          target.innerText = "✓ Reset";
+          setTimeout(() => { target.innerText = "Reset"; }, 1200);
+        } catch (err) {
+          console.error("Failed to reset window geometry:", err);
+        }
+        return;
+      }
 
       // Tree View header accordion toggle
       const treeHeader = target.closest(".tree-header") as HTMLElement | null;
@@ -353,6 +445,18 @@ export class MediaInfoApp {
       const cmd = e.metaKey || e.ctrlKey;
       if (cmd && e.key === "o") { e.preventDefault(); await this.openFileDialog(); return; }
       if (cmd && e.key === "O") { e.preventDefault(); await this.openFolderDialog(); return; }
+      if (cmd && e.key === ",") {
+        e.preventDefault();
+        this.isSettingsOpen = !this.isSettingsOpen;
+        this.renderShell();
+        return;
+      }
+      if (e.key === "Escape" && this.isSettingsOpen) {
+        e.preventDefault();
+        this.isSettingsOpen = false;
+        this.renderShell();
+        return;
+      }
 
       // Quick stepper shortcuts: [ or Alt+Left for prev, ] or Alt+Right for next
       if (this.batchReports.length > 1) {
