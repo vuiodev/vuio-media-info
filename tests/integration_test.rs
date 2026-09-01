@@ -83,19 +83,57 @@ fn test_prores_variants() {
     use vuio_media_info::ChromaSubsampling;
     use vuio_media_info::video::ProResVariant;
 
-    let cases: [(&[u8; 4], &str, u8, ChromaSubsampling); 6] = [
-        (b"apco", "422 Proxy", 10, ChromaSubsampling::YUV422),
-        (b"apcs", "422 LT", 10, ChromaSubsampling::YUV422),
-        (b"apcn", "422", 10, ChromaSubsampling::YUV422),
-        (b"apch", "422 HQ", 10, ChromaSubsampling::YUV422),
-        (b"ap4h", "4444", 12, ChromaSubsampling::YUV444),
-        (b"ap4x", "4444 XQ", 12, ChromaSubsampling::YUV444),
+    type ProResCase = (
+        &'static [u8; 4],
+        &'static str,
+        u8,
+        ChromaSubsampling,
+        Option<&'static str>,
+    );
+    let cases: [ProResCase; 6] = [
+        (
+            b"apco",
+            "422 Proxy",
+            10,
+            ChromaSubsampling::YUV422,
+            Some("P10LE"),
+        ),
+        (
+            b"apcs",
+            "422 LT",
+            10,
+            ChromaSubsampling::YUV422,
+            Some("P10LE"),
+        ),
+        (b"apcn", "422", 10, ChromaSubsampling::YUV422, Some("P10LE")),
+        (
+            b"apch",
+            "422 HQ",
+            10,
+            ChromaSubsampling::YUV422,
+            Some("P10LE"),
+        ),
+        (
+            b"ap4h",
+            "4444",
+            12,
+            ChromaSubsampling::YUV444,
+            Some("P12LE"),
+        ),
+        (
+            b"ap4x",
+            "4444 XQ",
+            12,
+            ChromaSubsampling::YUV444,
+            Some("P12LE"),
+        ),
     ];
 
-    for (fourcc, profile, depth, chroma) in cases {
+    for (fourcc, profile, depth, chroma, encoding) in cases {
         let variant = ProResVariant::from_fourcc(fourcc);
         assert_eq!(variant.profile_name(), profile);
         assert_eq!(variant.bit_depth(), depth);
+        assert_eq!(variant.color_encoding(), encoding);
         assert_eq!(variant.chroma_subsampling(), chroma);
     }
 }
@@ -285,6 +323,48 @@ fn test_prores_rejects_invalid_frames() {
     assert!(ProResHeader::parse(&frame).is_err());
 
     assert!(ProResHeader::parse(&[0u8; 8]).is_err());
+}
+
+#[test]
+fn test_prores_picture_header_and_slice_index() {
+    use vuio_media_info::video::ProResHeader;
+
+    let mut frame = prores_frame(2, 0, 0, 3, 0, 0);
+    frame[8..10].copy_from_slice(&20u16.to_be_bytes());
+    frame[16..18].copy_from_slice(&16u16.to_be_bytes());
+    frame[18..20].copy_from_slice(&16u16.to_be_bytes());
+    frame.truncate(28);
+    // Picture header: 8-byte header, 16 bytes of picture data, one slice,
+    // one macroblock per slice, followed by one minimum-sized slice.
+    frame.extend_from_slice(&[8 << 3, 0, 0, 0, 16, 0, 1, 0, 0, 6, 0, 0, 0, 0, 0, 0]);
+
+    let header = ProResHeader::parse(&frame).unwrap();
+    let picture = header.parse_picture_header(&frame).unwrap();
+    assert_eq!(picture.header_size, 8);
+    assert_eq!(picture.picture_data_size, 16);
+    assert_eq!(picture.declared_slice_count, 1);
+    assert_eq!(picture.slice_count, 1);
+    assert_eq!(picture.slice_sizes, vec![6]);
+
+    let mut invalid = frame;
+    invalid[36..38].copy_from_slice(&5u16.to_be_bytes());
+    assert!(header.parse_picture_header(&invalid).is_err());
+}
+
+#[test]
+fn test_prores_rejects_reserved_header_values() {
+    use vuio_media_info::video::ProResHeader;
+
+    let mut frame = prores_frame(2, 0, 0, 0, 0, 0);
+    frame[10..12].copy_from_slice(&2u16.to_be_bytes());
+    assert!(ProResHeader::parse(&frame).is_err());
+
+    let mut frame = prores_frame(2, 0, 0, 0, 0, 0);
+    frame[20] = 1 << 6;
+    assert!(ProResHeader::parse(&frame).is_err());
+
+    let frame = prores_frame(2, 0, 0, 0, 3, 0);
+    assert!(ProResHeader::parse(&frame).is_err());
 }
 
 /// The FFV1 configuration record is range-coded, so its fields cannot be read directly.

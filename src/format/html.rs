@@ -69,6 +69,12 @@ impl HtmlFormatter {
                 "<tr><td class=\"label\">Bit depth</td><td class=\"value\">{} bits</td></tr>\n",
                 v.bit_depth
             ));
+            if let Some(ref encoding) = v.color_encoding {
+                html.push_str(&format!(
+                    "<tr><td class=\"label\">Color encoding</td><td class=\"value\">{}</td></tr>\n",
+                    encoding
+                ));
+            }
             if let Some(ref hdr) = v.hdr_format {
                 html.push_str(&format!(
                     "<tr><td class=\"label\">HDR format</td><td class=\"value\">{}</td></tr>\n",

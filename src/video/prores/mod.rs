@@ -65,6 +65,16 @@ impl ProResVariant {
         }
     }
 
+    /// Component encoding mode used by ProRes' decoded colour planes.
+    pub fn color_encoding(&self) -> Option<&'static str> {
+        match self {
+            Self::Proxy | Self::LT | Self::Standard | Self::HQ => Some("P10LE"),
+            Self::Quad4444 | Self::Quad4444XQ => Some("P12LE"),
+            // ProRes RAW does not use the YUV component-plane modes above.
+            Self::RawHQ | Self::Raw | Self::Unknown => None,
+        }
+    }
+
     /// Only the 4444 family can carry an alpha plane.
     pub fn has_alpha(&self) -> bool {
         matches!(self, Self::Quad4444 | Self::Quad4444XQ)
@@ -96,6 +106,26 @@ pub struct ProResHeader {
     pub color_primaries: Option<ColorPrimaries>,
     pub transfer_characteristics: Option<TransferCharacteristics>,
     pub matrix_coefficients: Option<MatrixCoefficients>,
+    /// Frame-header flags: bit 1 indicates a custom luma quantisation matrix and
+    /// bit 0 indicates a custom chroma quantisation matrix.
+    pub flags: u8,
+    pub luma_quant_matrix: Option<[u8; 64]>,
+    pub chroma_quant_matrix: Option<[u8; 64]>,
+}
+
+/// Metadata from the ProRes picture header and slice index.
+///
+/// This deliberately stops before coefficient decoding: the information is useful for
+/// inspection and structural validation, while reconstructing pixels belongs to a codec.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProResPictureHeader {
+    pub header_size: u8,
+    pub picture_data_size: u32,
+    pub declared_slice_count: u16,
+    pub slice_count: u32,
+    pub slice_mb_width_log2: u8,
+    pub slice_mb_height_log2: u8,
+    pub slice_sizes: Vec<u16>,
 }
 
 impl ProResHeader {
@@ -116,6 +146,12 @@ impl ProResHeader {
         }
 
         let frame_size = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
+        if frame_size < 28 || frame_size as usize > data.len() {
+            return Err(MediaInfoError::InvalidData(format!(
+                "Invalid ProRes frame size {frame_size} for {} bytes of data",
+                data.len()
+            )));
+        }
         Self::parse_frame_header(&data[8..], frame_size)
     }
 
@@ -146,19 +182,46 @@ impl ProResHeader {
                 "ProRes frame header is too short ({header_size} bytes)"
             )));
         }
-        let version = data[11];
+        let version_raw = u16::from_be_bytes([data[10], data[11]]);
+        if version_raw > 1 {
+            return Err(MediaInfoError::InvalidData(format!(
+                "Unsupported ProRes bitstream version {version_raw}"
+            )));
+        }
+        if header_size as usize > data.len().saturating_sub(8) {
+            return Err(MediaInfoError::UnexpectedEof {
+                expected: 8 + header_size as usize,
+                actual: data.len(),
+            });
+        }
+        let version = version_raw as u8;
         let encoder_id = [data[12], data[13], data[14], data[15]];
         let width = u16::from_be_bytes([data[16], data[17]]) as u32;
         let height = u16::from_be_bytes([data[18], data[19]]) as u32;
 
         // Byte 20: chroma_format(2) reserved(2) interlace_mode(2) reserved(2)
+        if data[20] & 0x33 != 0 {
+            return Err(MediaInfoError::InvalidData(
+                "Non-zero reserved ProRes frame-header bits".to_string(),
+            ));
+        }
         let chroma_format = (data[20] >> 6) & 0x03;
+        if !(2..=3).contains(&chroma_format) {
+            return Err(MediaInfoError::InvalidData(format!(
+                "Reserved ProRes chroma format {chroma_format}"
+            )));
+        }
         let chroma_subsampling = match chroma_format {
             3 => ChromaSubsampling::YUV444,
             // 0 and 1 are reserved; every shipping profile is 4:2:2 or 4:4:4.
             _ => ChromaSubsampling::YUV422,
         };
         let interlace_mode = (data[20] >> 2) & 0x03;
+        if interlace_mode == 3 {
+            return Err(MediaInfoError::InvalidData(
+                "Reserved ProRes interlace mode".to_string(),
+            ));
+        }
 
         // Byte 21: aspect_ratio_information(4) frame_rate_code(4)
         let aspect_ratio_information = (data[21] >> 4) & 0x0F;
@@ -174,7 +237,36 @@ impl ProResHeader {
         } else {
             0
         };
+        if alpha_channel_type > 2 {
+            return Err(MediaInfoError::InvalidData(format!(
+                "Invalid ProRes alpha channel type {alpha_channel_type}"
+            )));
+        }
         let alpha_present = alpha_channel_type != 0;
+        let flags = data.get(27).copied().unwrap_or(0);
+        if flags & !0x03 != 0 {
+            return Err(MediaInfoError::InvalidData(format!(
+                "Invalid ProRes frame-header flags 0x{flags:02X}"
+            )));
+        }
+        let mut matrix_offset = 28usize;
+        let mut read_matrix = |enabled: bool| -> Result<Option<[u8; 64]>> {
+            if !enabled {
+                return Ok(None);
+            }
+            let end = matrix_offset + 64;
+            if end > 8 + header_size as usize || end > data.len() {
+                return Err(MediaInfoError::UnexpectedEof {
+                    expected: end,
+                    actual: data.len(),
+                });
+            }
+            let matrix = data[matrix_offset..end].try_into().unwrap();
+            matrix_offset = end;
+            Ok(Some(matrix))
+        };
+        let luma_quant_matrix = read_matrix(flags & 0x02 != 0)?;
+        let chroma_quant_matrix = read_matrix(flags & 0x01 != 0)?;
 
         Ok(Self {
             frame_size,
@@ -193,6 +285,95 @@ impl ProResHeader {
             color_primaries,
             transfer_characteristics,
             matrix_coefficients,
+            flags,
+            luma_quant_matrix,
+            chroma_quant_matrix,
+        })
+    }
+
+    /// Parses the picture header and slice index immediately following this frame header.
+    pub fn parse_picture_header(&self, frame: &[u8]) -> Result<ProResPictureHeader> {
+        let prefix = usize::from(frame.get(4..8) == Some(b"icpf"));
+        let prefix = prefix * 8;
+        let offset = prefix + self.header_size as usize;
+        let data = frame.get(offset..).ok_or(MediaInfoError::UnexpectedEof {
+            expected: offset + 8,
+            actual: frame.len(),
+        })?;
+        if data.len() < 8 {
+            return Err(MediaInfoError::UnexpectedEof {
+                expected: offset + 8,
+                actual: frame.len(),
+            });
+        }
+
+        let header_size = data[0] >> 3;
+        if !(8..=data.len()).contains(&(header_size as usize)) {
+            return Err(MediaInfoError::InvalidData(format!(
+                "Invalid ProRes picture header size {header_size}"
+            )));
+        }
+        let picture_data_size = u32::from_be_bytes([data[1], data[2], data[3], data[4]]);
+        if picture_data_size as usize > data.len() {
+            return Err(MediaInfoError::UnexpectedEof {
+                expected: offset + picture_data_size as usize,
+                actual: frame.len(),
+            });
+        }
+
+        let declared_slice_count = u16::from_be_bytes([data[5], data[6]]);
+        let slice_mb_width_log2 = data[7] >> 4;
+        let slice_mb_height_log2 = data[7] & 0x0F;
+        if slice_mb_width_log2 > 3 || slice_mb_height_log2 != 0 {
+            return Err(MediaInfoError::InvalidData(format!(
+                "Unsupported ProRes slice resolution {}x{} macroblocks",
+                1u32 << slice_mb_width_log2,
+                1u32 << slice_mb_height_log2
+            )));
+        }
+
+        let mb_width = self.width.div_ceil(16);
+        let mb_height = if self.interlace_mode == 0 {
+            self.height.div_ceil(16)
+        } else {
+            self.height.div_ceil(32)
+        };
+        let slice_mb_width = 1u32 << slice_mb_width_log2;
+        let slice_count = mb_height * mb_width.div_ceil(slice_mb_width);
+        let index_end = header_size as usize + slice_count as usize * 2;
+        if index_end > picture_data_size as usize || index_end > data.len() {
+            return Err(MediaInfoError::InvalidData(
+                "ProRes slice index exceeds picture data".to_string(),
+            ));
+        }
+
+        let mut slice_sizes = Vec::with_capacity(slice_count as usize);
+        let mut slice_data_size = 0usize;
+        for i in 0..slice_count as usize {
+            let start = header_size as usize + i * 2;
+            let size = u16::from_be_bytes([data[start], data[start + 1]]);
+            if size < 6 {
+                return Err(MediaInfoError::InvalidData(
+                    "ProRes slice is shorter than its minimum header".to_string(),
+                ));
+            }
+            slice_data_size += size as usize;
+            slice_sizes.push(size);
+        }
+        if index_end + slice_data_size > picture_data_size as usize {
+            return Err(MediaInfoError::InvalidData(
+                "ProRes slice data exceeds picture data".to_string(),
+            ));
+        }
+
+        Ok(ProResPictureHeader {
+            header_size,
+            picture_data_size,
+            declared_slice_count,
+            slice_count,
+            slice_mb_width_log2,
+            slice_mb_height_log2,
+            slice_sizes,
         })
     }
 

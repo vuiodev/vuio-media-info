@@ -82,7 +82,7 @@ function renderVideoItem(vt: VideoTrack, index: number, total: number): string {
   ].filter(Boolean).join(" · ");
 
   return `
-    <details class="track-card video-card">
+    <details class="track-card video-card" open>
       <summary class="track-summary">
         <div class="summary-left">
           <span class="disclosure-arrow">▶</span>
@@ -103,6 +103,7 @@ function renderVideoItem(vt: VideoTrack, index: number, total: number): string {
         ${row("Bit rate mode", vt.bit_rate_mode)}
         ${row("Bit depth", vt.bit_depth ? `${vt.bit_depth} bits` : "")}
         ${row("Color space", vt.color_space)}
+        ${row("Color encoding", vt.color_encoding)}
         ${row("Chroma subsampling", vt.chroma_subsampling)}
         ${row("Color range", vt.color_range)}
         ${row("Color primaries", vt.color_primaries)}
@@ -120,7 +121,7 @@ function renderVideoItem(vt: VideoTrack, index: number, total: number): string {
 }
 
 // ── render Audio Collapsible Item ──────────────────────────────────────────
-function renderAudioItem(at: AudioTrack, index: number, openByDefault = false): string {
+function renderAudioItem(at: AudioTrack, index: number, openByDefault = true): string {
   const ch = at.channels ? `${at.channels} ch` : "";
   const hz = at.sampling_rate ? fmtHz(at.sampling_rate) : "";
   const br = at.bit_rate ? fmtBitrate(at.bit_rate) : "";
@@ -164,7 +165,7 @@ function renderTextItem(tt: TextTrack, index: number): string {
   const summaryBadges = [lang, tt.format, def, forced].filter(Boolean).join(" · ");
 
   return `
-    <details class="track-card text-card">
+    <details class="track-card text-card" open>
       <summary class="track-summary">
         <div class="summary-left">
           <span class="disclosure-arrow">▶</span>
@@ -191,9 +192,9 @@ export function renderSummaryView(report: MediaReport): string {
   const overallBr = gen.overall_bitrate ?? computedBitrate(gen.file_size, gen.duration_ms);
   const isAudioOnly = report.videos.length === 0;
 
-  // General collapsible card (open for audio files, collapsed for video)
+  // General collapsible card (always open by default)
   const generalCard = `
-    <details class="track-card general-card" ${isAudioOnly ? "open" : ""}>
+    <details class="track-card general-card" open>
       <summary class="track-summary">
         <div class="summary-left">
           <span class="disclosure-arrow">▶</span>
@@ -222,16 +223,16 @@ export function renderSummaryView(report: MediaReport): string {
       </div>
     </details>`;
 
-  // Video items (always collapsed by default)
+  // Video items (open by default)
   const videoItems = report.videos.map((vt, i) => renderVideoItem(vt, i, report.videos.length)).join("");
 
-  // Audio items (open by default for audio files, collapsed for video)
-  const audioItems = report.audios.map((at, i) => renderAudioItem(at, i, isAudioOnly)).join("");
+  // Audio items (open by default)
+  const audioItems = report.audios.map((at, i) => renderAudioItem(at, i, true)).join("");
 
-  // Subtitle items
+  // Subtitle items (open by default)
   const textItems = report.texts.map((tt, i) => renderTextItem(tt, i)).join("");
 
-  // Chapters
+  // Chapters (open by default)
   let chapterItem = "";
   if (report.menu && report.menu.chapters.length > 0) {
     const chRows = report.menu.chapters.map(ch => {
@@ -239,7 +240,7 @@ export function renderSummaryView(report: MediaReport): string {
       return `<div class="ch-row"><span class="ch-ts">${ts}</span><span class="ch-txt">${ch.title || "(untitled)"}</span></div>`;
     }).join("");
     chapterItem = `
-      <details class="track-card chapter-card">
+      <details class="track-card chapter-card" open>
         <summary class="track-summary">
           <div class="summary-left">
             <span class="disclosure-arrow">▶</span>

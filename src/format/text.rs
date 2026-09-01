@@ -135,6 +135,9 @@ impl TextFormatter {
             if let Some(ref cs) = v.color_space {
                 Self::write_line(&mut out, "Color space", cs);
             }
+            if let Some(ref encoding) = v.color_encoding {
+                Self::write_line(&mut out, "Color encoding", encoding);
+            }
             if let Some(sub) = v.chroma_subsampling {
                 Self::write_line(&mut out, "Chroma subsampling", sub.display_name());
             }

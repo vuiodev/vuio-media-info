@@ -100,6 +100,7 @@ impl JsonFormatter {
             put("FrameCount", v.frame_count.map(|c| c.to_string()));
             put("Standard", v.standard.clone());
             put("ColorSpace", v.color_space.clone());
+            put("ColorEncoding", v.color_encoding.clone());
             put(
                 "ChromaSubsampling",
                 v.chroma_subsampling.map(|c| c.display_name().to_string()),

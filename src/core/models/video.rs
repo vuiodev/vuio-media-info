@@ -33,6 +33,8 @@ pub struct VideoTrack {
     pub frame_count: Option<u64>,
     pub standard: Option<String>,    // NTSC, PAL, etc.
     pub color_space: Option<String>, // YUV, RGB, etc.
+    /// Component storage/encoding mode, e.g. P10LE for planar 10-bit little-endian.
+    pub color_encoding: Option<String>,
     pub chroma_subsampling: Option<ChromaSubsampling>,
     pub bit_depth: u8,                    // 8, 10, 12, etc.
     pub scan_type: Option<String>,        // Progressive, Interlaced
@@ -92,6 +94,7 @@ impl Default for VideoTrack {
             frame_count: None,
             standard: None,
             color_space: None,
+            color_encoding: None,
             chroma_subsampling: None,
             bit_depth: 8,
             scan_type: Some("Progressive".to_string()),

@@ -43,6 +43,7 @@ export interface VideoTrack {
   frame_rate_mode?: string;
   frame_count?: number;
   color_space?: string;
+  color_encoding?: string;
   chroma_subsampling?: string;
   bit_depth?: number;
   scan_type?: string;

@@ -41,6 +41,9 @@ impl XmlFormatter {
             Self::write_elem(&mut out, "Width", &v.width.to_string(), 6);
             Self::write_elem(&mut out, "Height", &v.height.to_string(), 6);
             Self::write_elem(&mut out, "BitDepth", &v.bit_depth.to_string(), 6);
+            if let Some(ref encoding) = v.color_encoding {
+                Self::write_elem(&mut out, "ColorEncoding", encoding, 6);
+            }
             out.push_str("    </track>\n");
         }
 

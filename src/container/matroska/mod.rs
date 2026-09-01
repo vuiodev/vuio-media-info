@@ -496,6 +496,7 @@ impl MatroskaDemuxer {
                     v.format_profile = Some(variant.profile_name().to_string());
                     v.chroma_subsampling = Some(variant.chroma_subsampling());
                     v.bit_depth = variant.bit_depth();
+                    v.color_encoding = variant.color_encoding().map(str::to_string);
                 }
             } else if codec_id == "V_QUICKTIME" {
                 // CodecPrivate is a QuickTime sample description; its fourcc is at +4.
@@ -1349,6 +1350,32 @@ impl MatroskaDemuxer {
                         if let Some(bits) = header.alpha_bit_depth() {
                             v.extra
                                 .insert("Alpha_BitDepth".to_string(), bits.to_string());
+                        }
+                        if let Ok(picture) = header.parse_picture_header(frame) {
+                            v.extra.insert(
+                                "ProRes_PictureHeaderSize".to_string(),
+                                picture.header_size.to_string(),
+                            );
+                            v.extra.insert(
+                                "ProRes_PictureDataSize".to_string(),
+                                picture.picture_data_size.to_string(),
+                            );
+                            v.extra.insert(
+                                "ProRes_SliceCount".to_string(),
+                                picture.slice_count.to_string(),
+                            );
+                        }
+                        if header.flags & 0x02 != 0 {
+                            v.extra.insert(
+                                "ProRes_CustomLumaQuantMatrix".to_string(),
+                                "Yes".to_string(),
+                            );
+                        }
+                        if header.flags & 0x01 != 0 {
+                            v.extra.insert(
+                                "ProRes_CustomChromaQuantMatrix".to_string(),
+                                "Yes".to_string(),
+                            );
                         }
                     }
                 }

@@ -16,7 +16,7 @@ pub use cineform::CineFormHeader;
 pub use ffv1::Ffv1Header;
 pub use hevc::{DolbyVisionRpuParser, HevcSps};
 pub use mpeg2::Mpeg2SequenceHeader;
-pub use prores::{ProResHeader, ProResVariant};
+pub use prores::{ProResHeader, ProResPictureHeader, ProResVariant};
 pub use vp9::Vp9Header;
 
 /// Video payload carried by one DV DIF sequence, in bytes.

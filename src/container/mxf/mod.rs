@@ -105,7 +105,7 @@ impl MxfDemuxer {
                     0x05 | 0x15 => {
                         picture_essence_bytes += val_len as u64;
                         if first_picture_essence.is_empty() {
-                            first_picture_essence = value[..value.len().min(64)].to_vec();
+                            first_picture_essence = value.to_vec();
                         }
                     }
                     0x06 | 0x16 => sound_essence_bytes += val_len as u64,
@@ -164,6 +164,39 @@ impl MxfDemuxer {
         if video_track.format == VideoCodec::DNxHD && video_track.format_version.is_none() {
             video_track.format_version =
                 crate::video::vc3_header_version(&first_picture_essence).map(|v| v.to_string());
+        }
+
+        if video_track.format == VideoCodec::ProRes && !first_picture_essence.is_empty() {
+            let parsed = if first_picture_essence.get(4..8) == Some(b"icpf") {
+                crate::video::ProResHeader::parse(&first_picture_essence)
+            } else {
+                crate::video::ProResHeader::parse_frame_header(
+                    &first_picture_essence,
+                    first_picture_essence.len() as u32 + 8,
+                )
+            };
+            if let Ok(header) = parsed {
+                video_track.color_primaries = header.color_primaries;
+                video_track.transfer_characteristics = header.transfer_characteristics;
+                video_track.matrix_coefficients = header.matrix_coefficients;
+                video_track.format_version = Some(header.version.to_string());
+                video_track.scan_type = Some(header.scan_type().to_string());
+                video_track.scan_order = header.scan_order().map(str::to_string);
+                if let Ok(picture) = header.parse_picture_header(&first_picture_essence) {
+                    video_track.extra.insert(
+                        "ProRes_PictureHeaderSize".to_string(),
+                        picture.header_size.to_string(),
+                    );
+                    video_track.extra.insert(
+                        "ProRes_PictureDataSize".to_string(),
+                        picture.picture_data_size.to_string(),
+                    );
+                    video_track.extra.insert(
+                        "ProRes_SliceCount".to_string(),
+                        picture.slice_count.to_string(),
+                    );
+                }
+            }
         }
 
         // Codecs whose descriptor carries no bit rate get one measured from the essence.
@@ -365,6 +398,13 @@ impl MxfDemuxer {
         };
         if track.color_space.is_none() {
             track.color_space = Some("YUV".to_string());
+        }
+        if track.format == VideoCodec::ProRes {
+            track.color_encoding = match track.bit_depth {
+                10 => Some("P10LE".to_string()),
+                12 => Some("P12LE".to_string()),
+                _ => None,
+            };
         }
     }
 

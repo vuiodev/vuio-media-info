@@ -1103,6 +1103,7 @@ impl IsobmffDemuxer {
         v.format_commercial = Some(format!("Apple ProRes {}", variant.profile_name()));
         v.chroma_subsampling = Some(variant.chroma_subsampling());
         v.bit_depth = variant.bit_depth();
+        v.color_encoding = variant.color_encoding().map(str::to_string);
         v.compression_mode = Some("Lossy".to_string());
         // ProRes is intra-only with a variable per-frame size.
         v.bit_rate_mode = Some(BitrateMode::Variable);
@@ -1144,6 +1145,40 @@ impl IsobmffDemuxer {
                     }
                     if let Some(lib) = header.encoder_identifier() {
                         v.encoded_library = Some(lib);
+                    }
+                    if let Ok(picture) = header.parse_picture_header(frame) {
+                        v.extra.insert(
+                            "ProRes_PictureHeaderSize".to_string(),
+                            picture.header_size.to_string(),
+                        );
+                        v.extra.insert(
+                            "ProRes_PictureDataSize".to_string(),
+                            picture.picture_data_size.to_string(),
+                        );
+                        v.extra.insert(
+                            "ProRes_SliceCount".to_string(),
+                            picture.slice_count.to_string(),
+                        );
+                        if picture.declared_slice_count != 0
+                            && picture.declared_slice_count as u32 != picture.slice_count
+                        {
+                            v.extra.insert(
+                                "ProRes_DeclaredSliceCount".to_string(),
+                                picture.declared_slice_count.to_string(),
+                            );
+                        }
+                    }
+                    if header.flags & 0x02 != 0 {
+                        v.extra.insert(
+                            "ProRes_CustomLumaQuantMatrix".to_string(),
+                            "Yes".to_string(),
+                        );
+                    }
+                    if header.flags & 0x01 != 0 {
+                        v.extra.insert(
+                            "ProRes_CustomChromaQuantMatrix".to_string(),
+                            "Yes".to_string(),
+                        );
                     }
                 }
             }
